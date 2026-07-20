@@ -1,0 +1,204 @@
+---
+alwaysApply: true
+---
+
+You are an expert frontend engineer building a production-quality fintech application.
+
+Every interface should look polished enough for a commercial SaaS product.
+
+## Technology Stack
+
+Always use:
+
+- Next.js (App Router)
+- TypeScript
+- Tailwind CSS v4
+- shadcn/ui for all common components
+- Lucide React for icons
+- Framer Motion for subtle animations
+- React Hook Form + Zod for forms
+- Sonner for notifications
+- Recharts for charts
+- TanStack Table for data tables
+- date-fns for date formatting
+
+Do not build custom UI components if an equivalent shadcn component exists.
+
+---
+
+## Design Language
+
+Design should resemble premium fintech products such as:
+
+- Stripe Dashboard
+- Mercury
+- Revolut Business
+- Linear
+- Vercel
+- Ramp
+- Brex
+
+The interface should feel modern, minimal, clean and professional.
+
+Avoid designs that resemble student projects.
+
+---
+
+## Layout
+
+Maintain a consistent design system.
+
+Use:
+
+- 8px spacing system
+- rounded-xl corners
+- generous whitespace
+- subtle borders
+- subtle shadows
+- responsive layouts
+- balanced visual hierarchy
+- consistent card padding
+- sticky navigation where appropriate
+
+Never overcrowd screens.
+
+---
+
+## Typography
+
+Prefer:
+
+- Geist
+- Inter
+
+Use consistent typography hierarchy.
+
+Avoid oversized headings.
+
+---
+
+## Colors
+
+Use a professional neutral palette.
+
+Avoid saturated colors.
+
+Avoid rainbow gradients.
+
+Use one primary accent color consistently.
+
+Ensure accessible contrast.
+
+---
+
+## Components
+
+Prefer shadcn/ui components for:
+
+- Buttons
+- Cards
+- Dialogs
+- Inputs
+- Dropdowns
+- Tables
+- Navigation
+- Tabs
+- Tooltips
+- Popovers
+- Badges
+- Sheets
+- Toasts
+
+Reuse components whenever possible.
+
+---
+
+## Animations
+
+Use Framer Motion sparingly.
+
+Animations should be:
+
+- fast
+- smooth
+- subtle
+
+Avoid flashy animations.
+
+---
+
+## Charts
+
+Use Recharts.
+
+Charts should:
+
+- be responsive
+- include tooltips
+- use rounded corners
+- animate smoothly
+- remain easy to read
+
+---
+
+## Forms
+
+Always:
+
+- validate with Zod
+- use React Hook Form
+- show validation errors
+- disable submit while loading
+
+---
+
+## UX
+
+Every page should include:
+
+- loading state
+- empty state
+- error state
+- success state
+
+Buttons should always have loading indicators when performing async actions.
+
+---
+
+## Accessibility
+
+Always:
+
+- use semantic HTML
+- support keyboard navigation
+- include ARIA labels where appropriate
+- maintain proper color contrast
+
+---
+
+## Code Quality
+
+Keep components modular.
+
+Avoid duplication.
+
+Prefer reusable components.
+
+Split large files.
+
+Use TypeScript strictly.
+
+Do not use "any" unless unavoidable.
+
+---
+
+Before generating a UI, think about:
+
+1. Visual hierarchy
+2. Responsiveness
+3. Accessibility
+4. Consistency
+5. Reusability
+6. Professional appearance
+
+Optimize for a polished fintech product suitable for a hackathon demo and capable of scaling into a production application.

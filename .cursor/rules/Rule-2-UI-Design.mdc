@@ -1,0 +1,31 @@
+---
+alwaysApply: true
+---
+
+Design a premium fintech interface.
+
+Style should resemble modern products such as Stripe, Mercury, Linear, Vercel or Revolut.
+
+Use:
+
+• Tailwind CSS
+• shadcn/ui
+• Lucide icons
+
+No emojis.
+
+Minimal.
+
+Professional.
+
+Consistent spacing.
+
+Rounded corners.
+
+Subtle shadows.
+
+Responsive on desktop and mobile.
+
+Animations should be subtle.
+
+Accessibility should always be considered.

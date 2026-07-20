@@ -1,0 +1,21 @@
+---
+alwaysApply: true
+---
+
+Security is a priority.
+
+Validate every input.
+
+Never trust client-side data.
+
+Sanitize all inputs.
+
+Use secure API routes.
+
+Never expose secrets.
+
+Use proper authentication patterns.
+
+Explain any security-sensitive code.
+
+Follow OWASP best practices whenever applicable.

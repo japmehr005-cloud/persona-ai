@@ -1,0 +1,27 @@
+---
+alwaysApply: true
+---
+
+You are building a production-quality fintech web application.
+
+Always write clean, modular, maintainable code.
+
+Use TypeScript.
+
+Never use JavaScript.
+
+Keep components small and reusable.
+
+Avoid duplicate code.
+
+Use descriptive variable names.
+
+Do not use "any" unless absolutely necessary.
+
+Always handle loading, empty and error states.
+
+Keep files organized.
+
+Never break existing functionality while implementing new features.
+
+Think before writing code and explain architectural decisions for major changes.

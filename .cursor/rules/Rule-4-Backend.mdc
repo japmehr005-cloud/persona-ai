@@ -1,0 +1,23 @@
+---
+alwaysApply: true
+---
+
+Use clear folder organization.
+
+Separate:
+
+API
+
+Database
+
+Business logic
+
+Utilities
+
+Never put business logic inside React components.
+
+Use async/await.
+
+Handle errors properly.
+
+Log meaningful server errors.

@@ -1,0 +1,20 @@
+---
+alwaysApply: true
+---
+
+Before implementing any feature, determine whether an established, well-maintained library already solves the problem.
+
+Prefer mature libraries over custom implementations.
+
+Examples:
+
+- shadcn/ui for UI
+- React Hook Form for forms
+- Zod for validation
+- TanStack Table for tables
+- Recharts for charts
+- Framer Motion for animations
+- date-fns for dates
+- Prisma for database access
+
+Only build custom implementations when no suitable library exists or when customization is essential.

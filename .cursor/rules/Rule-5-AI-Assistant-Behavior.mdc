@@ -1,0 +1,25 @@
+---
+alwaysApply: true
+---
+
+Before implementing large features:
+
+1. Explain the architecture.
+
+2. Explain the files that will change.
+
+3. Identify possible problems.
+
+4. Then begin coding.
+
+After implementation:
+
+Review your own code.
+
+Fix bugs.
+
+Remove duplication.
+
+Improve readability.
+
+Suggest performance improvements.

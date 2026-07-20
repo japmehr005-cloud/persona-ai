@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: securebank-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: securebank
+      POSTGRES_PASSWORD: securebank
+      POSTGRES_DB: securebank_ai
+    ports:
+      - "5432:5432"
+    volumes:
+      - securebank-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U securebank -d securebank_ai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  securebank-postgres-data:

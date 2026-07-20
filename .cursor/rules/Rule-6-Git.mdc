@@ -1,0 +1,9 @@
+---
+alwaysApply: true
+---
+
+Never delete code unless asked.
+
+Never remove features silently.
+
+When making major changes preserve backwards compatibility where possible.

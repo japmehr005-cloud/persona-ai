@@ -1,0 +1,331 @@
+// Persona AI — data model
+// Covers the full product architecture (Phases 1-6). Models are grouped by
+// the phase that introduces them; earlier phases only read/write their own
+// slice of the schema so the product can be demoed incrementally even
+// though the schema is created up front.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 1 — Identity & accounts
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  CUSTOMER
+  ANALYST
+  ADMIN
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  role           UserRole @default(CUSTOMER)
+  isDemo         Boolean  @default(false)
+  otpThreshold   Int      @default(71)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  accounts            Account[]
+  behavioralProfile   BehavioralProfile?
+  devices             Device[]
+  sessions            Session[]
+  alerts              Alert[]
+  importJobs          ImportJob[]
+  auditLogs           AuditLog[]
+  contextSignals      ContextSignal[]
+
+  @@map("users")
+}
+
+model Account {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  mask      String
+  type      String   @default("CHECKING")
+  balance   Decimal  @default(0) @db.Decimal(14, 2)
+  currency  String   @default("USD")
+  createdAt DateTime @default(now())
+
+  transactions Transaction[]
+
+  @@map("accounts")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — Transactions & statement import
+// ---------------------------------------------------------------------------
+
+enum TransactionStatus {
+  PENDING
+  APPROVED
+  DENIED
+  FLAGGED
+}
+
+enum TransactionChannel {
+  CARD
+  TRANSFER
+  ACH
+  ATM
+  ONLINE
+}
+
+enum ImportJobStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model ImportJob {
+  id          String          @id @default(cuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  filename    String
+  status      ImportJobStatus @default(PROCESSING)
+  rowCount    Int             @default(0)
+  importedCount Int           @default(0)
+  errorLog    Json?
+  createdAt   DateTime        @default(now())
+  completedAt DateTime?
+
+  transactions Transaction[]
+
+  @@map("import_jobs")
+}
+
+model Transaction {
+  id           String             @id @default(cuid())
+  accountId    String
+  account      Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  importJobId  String?
+  importJob    ImportJob?         @relation(fields: [importJobId], references: [id])
+  date         DateTime
+  amount       Decimal            @db.Decimal(14, 2)
+  merchant     String
+  category     String
+  beneficiary  String?
+  channel      TransactionChannel @default(CARD)
+  status       TransactionStatus  @default(APPROVED)
+  isSimulated  Boolean            @default(false)
+  createdAt    DateTime           @default(now())
+
+  riskAssessment RiskAssessment?
+  otpChallenges  OtpChallenge[]
+  contextSignals ContextSignal[]
+  alerts         Alert[]
+
+  @@index([accountId, date])
+  @@map("transactions")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 — Behavioral baseline & device/session history
+// ---------------------------------------------------------------------------
+
+model BehavioralProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  version      Int      @default(1)
+  avgAmount    Decimal  @db.Decimal(14, 2)
+  medianAmount Decimal  @db.Decimal(14, 2)
+  p95Amount    Decimal  @db.Decimal(14, 2)
+  stdDevAmount Decimal  @db.Decimal(14, 2)
+  txPerDay     Decimal  @db.Decimal(8, 2)
+  topMerchants Json // Array<{ merchant: string; count: number; totalAmount: number }>
+  activeHours  Json // 7x24 matrix of relative activity frequency
+  sampleSize   Int
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  @@map("behavioral_profiles")
+}
+
+model Device {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fingerprintHash String
+  label           String
+  userAgent       String?
+  trusted         Boolean  @default(false)
+  firstSeenAt     DateTime @default(now())
+  lastSeenAt      DateTime @default(now())
+
+  sessions Session[]
+
+  @@unique([userId, fingerprintHash])
+  @@map("devices")
+}
+
+model Session {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId     String?
+  device       Device?   @relation(fields: [deviceId], references: [id])
+  ipAddress    String?
+  userAgent    String?
+  city         String?
+  country      String?
+  latitude     Float?
+  longitude    Float?
+  startedAt    DateTime  @default(now())
+  lastActiveAt DateTime  @default(now())
+
+  @@map("sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4 — Adaptive Risk Engine & alerts
+// ---------------------------------------------------------------------------
+
+enum RiskTier {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model RiskAssessment {
+  id            String      @id @default(cuid())
+  transactionId String      @unique
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  score         Int
+  tier          RiskTier
+  explanation   String
+  otpRequired   Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+
+  factors RiskFactor[]
+
+  @@map("risk_assessments")
+}
+
+model RiskFactor {
+  id           String         @id @default(cuid())
+  assessmentId String
+  assessment   RiskAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  code         String
+  label        String
+  detail       String
+  weight       Int
+  contribution Int
+
+  @@map("risk_factors")
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum AlertDisposition {
+  UNREVIEWED
+  CONFIRMED_FRAUD
+  FALSE_POSITIVE
+  ESCALATED
+}
+
+model Alert {
+  id            String            @id @default(cuid())
+  userId        String
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactionId String?
+  transaction   Transaction?      @relation(fields: [transactionId], references: [id])
+  severity      AlertSeverity
+  title         String
+  body          String
+  status        AlertStatus       @default(OPEN)
+  disposition   AlertDisposition  @default(UNREVIEWED)
+  analystNote   String?
+  createdAt     DateTime          @default(now())
+  resolvedAt    DateTime?
+
+  @@index([userId, status])
+  @@map("alerts")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5 — CB-OTP & simulated context signals
+// ---------------------------------------------------------------------------
+
+enum OtpChallengeStatus {
+  PENDING
+  VERIFIED
+  EXPIRED
+  FAILED
+}
+
+model OtpChallenge {
+  id            String             @id @default(cuid())
+  transactionId String
+  transaction   Transaction        @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  contextHash   String
+  otpHash       String
+  attempts      Int                @default(0)
+  maxAttempts   Int                @default(3)
+  status        OtpChallengeStatus @default(PENDING)
+  expiresAt     DateTime
+  createdAt     DateTime           @default(now())
+  verifiedAt    DateTime?
+
+  @@map("otp_challenges")
+}
+
+enum ContextSignalType {
+  CALL
+  SMS
+  LOCATION
+  DEVICE
+}
+
+model ContextSignal {
+  id            String            @id @default(cuid())
+  userId        String
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactionId String?
+  transaction   Transaction?      @relation(fields: [transactionId], references: [id])
+  type          ContextSignalType
+  payload       Json
+  simulated     Boolean           @default(true)
+  receivedAt    DateTime          @default(now())
+
+  @@map("context_signals")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 6 — Audit trail (admin console)
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
