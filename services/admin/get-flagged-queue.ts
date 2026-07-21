@@ -11,7 +11,7 @@ export interface FlaggedQueueRow {
   customerName: string;
   customerEmail: string;
   score: number;
-  tier: "LOW" | "MEDIUM" | "HIGH";
+  tier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   explanation: string;
   factors: { code: string; label: string; detail: string; contribution: number }[];
   contextSignals: { type: "CALL" | "SMS" | "LOCATION" | "DEVICE"; label: string; receivedAt: Date }[];
@@ -24,7 +24,7 @@ const FLAGGED_QUEUE_LIMIT = 100;
 
 export async function getFlaggedQueue(): Promise<FlaggedQueueRow[]> {
   const transactions = await prisma.transaction.findMany({
-    where: { riskAssessment: { tier: { in: ["MEDIUM", "HIGH"] } } },
+    where: { riskAssessment: { tier: { in: ["MEDIUM", "HIGH", "CRITICAL"] } } },
     orderBy: { date: "desc" },
     take: FLAGGED_QUEUE_LIMIT,
     include: {

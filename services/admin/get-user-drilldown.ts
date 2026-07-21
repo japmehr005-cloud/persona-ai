@@ -22,7 +22,7 @@ export interface UserDrilldown {
     merchant: string;
     amount: number;
     status: "PENDING" | "APPROVED" | "DENIED" | "FLAGGED";
-    riskTier: "LOW" | "MEDIUM" | "HIGH" | null;
+    riskTier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
   }[];
   openAlertCount: number;
 }

@@ -6,7 +6,7 @@ export interface UserDirectoryRow {
   email: string;
   lastActivity: Date | null;
   openAlertCount: number;
-  latestRiskTier: "LOW" | "MEDIUM" | "HIGH" | null;
+  latestRiskTier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
 }
 
 export async function getUserDirectory(): Promise<UserDirectoryRow[]> {

@@ -7,7 +7,7 @@ export interface TransactionRow {
   category: string;
   amount: number;
   status: "PENDING" | "APPROVED" | "DENIED" | "FLAGGED";
-  riskTier: "LOW" | "MEDIUM" | "HIGH" | null;
+  riskTier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
   accountName: string;
   accountMask: string;
 }

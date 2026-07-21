@@ -5,7 +5,7 @@ export interface AdminOverview {
   flaggedLast24h: number;
   openAlerts: number;
   avgRiskScore: number;
-  riskDistribution: { tier: "LOW" | "MEDIUM" | "HIGH"; count: number }[];
+  riskDistribution: { tier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"; count: number }[];
   recentAlerts: {
     id: string;
     title: string;
@@ -18,7 +18,7 @@ export interface AdminOverview {
     merchant: string;
     amount: number;
     score: number;
-    tier: "LOW" | "MEDIUM" | "HIGH";
+    tier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
     date: Date;
     customerName: string;
   }[];
@@ -34,7 +34,7 @@ export async function getAdminOverview(): Promise<AdminOverview> {
   const [totalUsers, flaggedLast24h, openAlerts, scoreAggregate, tierCounts, recentAlerts, topFlagged] =
     await Promise.all([
       prisma.user.count({ where: { role: "CUSTOMER" } }),
-      prisma.riskAssessment.count({ where: { tier: "HIGH", createdAt: { gte: dayAgo } } }),
+      prisma.riskAssessment.count({ where: { tier: { in: ["HIGH", "CRITICAL"] }, createdAt: { gte: dayAgo } } }),
       prisma.alert.count({ where: { status: "OPEN" } }),
       prisma.riskAssessment.aggregate({ _avg: { score: true } }),
       prisma.riskAssessment.groupBy({ by: ["tier"], _count: { tier: true } }),
@@ -44,7 +44,7 @@ export async function getAdminOverview(): Promise<AdminOverview> {
         include: { user: { select: { firstName: true, lastName: true } } },
       }),
       prisma.transaction.findMany({
-        where: { riskAssessment: { tier: { in: ["MEDIUM", "HIGH"] } } },
+        where: { riskAssessment: { tier: { in: ["MEDIUM", "HIGH", "CRITICAL"] } } },
         orderBy: { date: "desc" },
         take: FLAGGED_QUEUE_PREVIEW_LIMIT,
         include: {
@@ -54,7 +54,7 @@ export async function getAdminOverview(): Promise<AdminOverview> {
       }),
     ]);
 
-  const tierOrder: Array<"LOW" | "MEDIUM" | "HIGH"> = ["LOW", "MEDIUM", "HIGH"];
+  const tierOrder: Array<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL"> = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
   const riskDistribution = tierOrder.map((tier) => ({
     tier,
     count: tierCounts.find((entry) => entry.tier === tier)?._count.tier ?? 0,

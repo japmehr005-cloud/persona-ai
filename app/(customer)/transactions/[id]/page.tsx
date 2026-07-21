@@ -78,6 +78,25 @@ export default async function TransactionDetailPage({
         </div>
       )}
 
+      {transaction.pendingVerificationSession && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive">
+              <ShieldAlert className="size-4.5" />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-foreground">High-risk transaction detected</p>
+              <p className="text-sm text-muted-foreground">
+                This transaction is on hold. Verify your identity to continue, or cancel it.
+              </p>
+            </div>
+          </div>
+          <Button asChild>
+            <Link href={`/verify/session/${transaction.id}`}>Review now</Link>
+          </Button>
+        </div>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-1">
           <CardHeader>
@@ -119,7 +138,15 @@ export default async function TransactionDetailPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <RiskBreakdown assessment={transaction.riskAssessment} />
+            <RiskBreakdown
+              assessment={
+                transaction.riskAssessment && {
+                  ...transaction.riskAssessment,
+                  actualAmount: transaction.riskAssessment.actualAmount,
+                  baseline: transaction.riskAssessment.baseline,
+                }
+              }
+            />
           </CardContent>
         </Card>
       </div>

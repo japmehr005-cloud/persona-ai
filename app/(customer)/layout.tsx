@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { isDemoModeActiveForUser } from "@/services/settings/get-user-settings";
 import { AppShell } from "@/components/layout/app-shell";
 import { GlobalSearch } from "@/components/layout/global-search";
 import { NotificationPopover } from "@/components/layout/notification-popover";
@@ -14,19 +15,22 @@ export default async function CustomerLayout({
 }) {
   const user = await requireUser();
 
-  const [dbUser, openAlerts] = await Promise.all([
+  const [dbUser, openAlerts, demoModeActive] = await Promise.all([
     prisma.user.findUnique({ where: { id: user.id } }),
     prisma.alert.findMany({
       where: { userId: user.id, status: "OPEN" },
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
+    isDemoModeActiveForUser(user.id),
   ]);
 
   return (
     <AppShell
       variant="customer"
-      includeDevNav={process.env.NEXT_PUBLIC_DEMO_MODE_ENABLED === "true"}
+      // Either the build-wide demo flag or the user's own Settings → Risk
+      // Engine → Demo Mode toggle unlocks the simulator nav entry.
+      includeDevNav={demoModeActive}
       brandHref="/dashboard"
       brandLabel="Persona AI"
       header={

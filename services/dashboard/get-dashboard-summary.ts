@@ -10,7 +10,7 @@ export interface DashboardTransaction {
   category: string;
   amount: number;
   status: "PENDING" | "APPROVED" | "DENIED" | "FLAGGED";
-  riskTier: "LOW" | "MEDIUM" | "HIGH" | null;
+  riskTier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
 }
 
 export interface DashboardAlert {

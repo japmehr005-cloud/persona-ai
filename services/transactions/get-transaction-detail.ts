@@ -16,12 +16,23 @@ export interface TransactionDetail {
   riskAssessment: {
     id: string;
     score: number;
-    tier: "LOW" | "MEDIUM" | "HIGH";
+    tier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+    confidence: number;
     explanation: string;
     otpRequired: boolean;
     factors: { code: string; label: string; detail: string; contribution: number }[];
+    actualAmount: number;
+    baseline: {
+      avgAmount: number | null;
+      p95Amount: number | null;
+      medianAmount: number | null;
+      sampleSize: number | null;
+    };
   } | null;
   pendingOtpChallengeId: string | null;
+  /** Set only while a High-Risk Verification context session is still
+   * PENDING — links to `/verify/session/[id]` instead of directly to OTP. */
+  pendingVerificationSession: boolean;
 }
 
 export async function getTransactionDetail(
@@ -63,6 +74,7 @@ export async function getTransactionDetail(
           id: transaction.riskAssessment.id,
           score: transaction.riskAssessment.score,
           tier: transaction.riskAssessment.tier,
+          confidence: transaction.riskAssessment.confidence,
           explanation: transaction.riskAssessment.explanation,
           otpRequired: transaction.riskAssessment.otpRequired,
           factors: transaction.riskAssessment.factors.map((factor) => ({
@@ -71,8 +83,25 @@ export async function getTransactionDetail(
             detail: factor.detail,
             contribution: factor.contribution,
           })),
+          actualAmount: Number(transaction.amount),
+          baseline: {
+            avgAmount:
+              transaction.riskAssessment.baselineAvgAmount !== null
+                ? Number(transaction.riskAssessment.baselineAvgAmount)
+                : null,
+            p95Amount:
+              transaction.riskAssessment.baselineP95Amount !== null
+                ? Number(transaction.riskAssessment.baselineP95Amount)
+                : null,
+            medianAmount:
+              transaction.riskAssessment.baselineMedianAmount !== null
+                ? Number(transaction.riskAssessment.baselineMedianAmount)
+                : null,
+            sampleSize: transaction.riskAssessment.baselineSampleSize,
+          },
         }
       : null,
     pendingOtpChallengeId: transaction.otpChallenges[0]?.id ?? null,
+    pendingVerificationSession: transaction.riskAssessment?.verificationStatus === "PENDING",
   };
 }

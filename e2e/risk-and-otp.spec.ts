@@ -39,22 +39,67 @@ test.describe("Adaptive Risk Engine and CB-OTP", () => {
     await simulatePayment(page, { merchant, amount: "500000" });
 
     const dialog = page.getByRole("dialog", { name: "Risk assessment result" });
-    await expect(dialog.getByText("High risk")).toBeVisible();
+    // An amount this far outside the behavioral baseline reliably reaches
+    // HIGH or CRITICAL (an uncapped-growth curve, by design — see the Risk
+    // Engine rebuild), so assert on the step-up gate rather than pinning
+    // to one specific tier label.
     await expect(dialog.getByText("Step-up verification required")).toBeVisible();
-    await expect(dialog.getByText(/verification code is shown here/)).toBeVisible();
+    await expect(
+      dialog.getByText("This transaction is on hold. You'll need to verify your identity")
+    ).toBeVisible();
 
-    // The demo delivery channel surfaces the OTP directly in this dialog
-    // (no real email/SMS provider configured), so capture it before
-    // navigating to the verification page, which doesn't repeat it.
-    const demoCode = (await dialog.locator("span.font-mono.font-semibold.tabular-nums").textContent())?.trim();
+    await dialog.getByRole("button", { name: "Review & verify" }).click();
+    await page.waitForURL("**/verify/session/**");
+
+    // High-Risk Verification panel: score, triggered rules, and the
+    // Cancel/Verify Identity decision point.
+    await expect(page.getByText("High-risk transaction detected")).toBeVisible();
+    await page.getByRole("button", { name: "Verify identity" }).click();
+
+    // No WebAuthn credential registered in this fresh browser context, so
+    // the flow falls back to the password step-up gate.
+    await page.getByLabel("Password").fill(DEMO_PASSWORD);
+    await page.getByRole("button", { name: "Verify and continue" }).click();
+
+    // Identity confirmed — CB-OTP is generated and (in this no-email-provider
+    // demo configuration) surfaced directly so the flow can be completed.
+    await expect(page.getByText("Identity verified")).toBeVisible();
+    const demoCodeLocator = page.locator("span.font-mono.font-semibold.tabular-nums");
+    const demoCode = (await demoCodeLocator.textContent())?.trim();
     expect(demoCode).toMatch(/^\d{6}$/);
 
-    await dialog.getByRole("button", { name: "Verify now" }).click();
+    await page.getByRole("button", { name: "Continue to code entry" }).click();
     await page.waitForURL("**/verify/otp**");
 
     await page.getByRole("textbox", { name: "6-digit verification code" }).pressSequentially(demoCode!);
     await page.getByRole("button", { name: "Verify and approve" }).click();
 
     await expect(page.getByText("Transaction approved")).toBeVisible();
+  });
+
+  test("cancelling a high-risk transaction denies it without ever issuing an OTP", async ({ page }) => {
+    for (let i = 0; i < 3; i += 1) {
+      await simulatePayment(page, { merchant: `Warm-up Merchant B${i}`, amount: "150" });
+      await closeSimulateDialog(page);
+    }
+
+    await page.goto("/dev/context-simulator");
+    await page.getByRole("button", { name: "Trigger" }).nth(0).click();
+    await expect(page.getByText("Signal injected")).toBeVisible();
+    await page.getByRole("button", { name: "Trigger" }).nth(1).click();
+
+    await page.goto("/dashboard");
+    const merchant = `Unfamiliar Wire Desk Cancel ${Date.now()}`;
+    await simulatePayment(page, { merchant, amount: "500000" });
+
+    const dialog = page.getByRole("dialog", { name: "Risk assessment result" });
+    await dialog.getByRole("button", { name: "Review & verify" }).click();
+    await page.waitForURL("**/verify/session/**");
+
+    await page.getByRole("button", { name: "Cancel transaction" }).click();
+    await expect(page.getByText("Transaction cancelled")).toBeVisible();
+
+    await page.getByRole("button", { name: "View transaction" }).click();
+    await expect(page.getByText("DENIED")).toBeVisible();
   });
 });

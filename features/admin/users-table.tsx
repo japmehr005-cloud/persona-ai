@@ -103,6 +103,7 @@ export function UsersTable({ users }: { users: UserDirectoryRow[] }) {
             <SelectItem value="LOW">Low risk</SelectItem>
             <SelectItem value="MEDIUM">Medium risk</SelectItem>
             <SelectItem value="HIGH">High risk</SelectItem>
+            <SelectItem value="CRITICAL">Critical risk</SelectItem>
           </SelectContent>
         </Select>
       </div>

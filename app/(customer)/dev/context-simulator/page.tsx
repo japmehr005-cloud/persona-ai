@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { RadioTower } from "lucide-react";
 
 import { requireUser } from "@/lib/session";
+import { isDemoModeActiveForUser } from "@/services/settings/get-user-settings";
 import { getActiveContextSignals } from "@/services/context-signals/get-active-signals";
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
@@ -12,9 +13,12 @@ import { Card, CardContent } from "@/components/ui/card";
 export const metadata: Metadata = { title: "Context Signal Simulator" };
 
 export default async function ContextSimulatorPage() {
-  if (process.env.NEXT_PUBLIC_DEMO_MODE_ENABLED !== "true") notFound();
-
   const user = await requireUser();
+
+  // Unlocked by either the build-wide demo flag or the user's own
+  // Settings → Risk Engine → Demo Mode toggle (Section 3 of the plan).
+  if (!(await isDemoModeActiveForUser(user.id))) notFound();
+
   const activeSignals = await getActiveContextSignals(user.id);
 
   return (

@@ -45,12 +45,19 @@ const CHANNELS = [
 
 interface SimulationOutcome {
   score: number;
-  tier: "LOW" | "MEDIUM" | "HIGH";
+  tier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  confidence: number;
   explanation: string;
   otpRequired: boolean;
   factors: { code: string; label: string; detail: string; contribution: number }[];
-  otpChallengeId?: string;
-  otpDemoCode?: string;
+  verificationStatus: "NONE" | "PENDING";
+  actualAmount: number;
+  baseline: {
+    avgAmount: number | null;
+    p95Amount: number | null;
+    medianAmount: number | null;
+    sampleSize: number | null;
+  };
 }
 
 export function SimulatePaymentDialog({ accounts }: { accounts: AccountOption[] }) {
@@ -107,11 +114,13 @@ export function SimulatePaymentDialog({ accounts }: { accounts: AccountOption[] 
     setOutcome({
       score: response.result.score,
       tier: response.result.tier,
+      confidence: response.result.confidence,
       explanation: response.result.explanation,
       otpRequired: response.result.otpRequired,
       factors: response.result.factors,
-      otpChallengeId: response.result.otpChallengeId,
-      otpDemoCode: response.result.otpDemoCode,
+      verificationStatus: response.result.verificationStatus,
+      actualAmount: response.result.actualAmount,
+      baseline: response.result.baseline,
     });
     setTransactionId(response.result.transactionId);
     router.refresh();
@@ -143,24 +152,27 @@ export function SimulatePaymentDialog({ accounts }: { accounts: AccountOption[] 
               assessment={{
                 score: outcome.score,
                 tier: outcome.tier,
+                confidence: outcome.confidence,
                 explanation: outcome.explanation,
                 otpRequired: outcome.otpRequired,
                 factors: outcome.factors,
+                actualAmount: outcome.actualAmount,
+                baseline: outcome.baseline,
               }}
             />
-            {outcome.otpDemoCode && (
-              <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-                Demo mode — email delivery isn&apos;t configured, so your verification code is shown
-                here: <span className="font-mono font-semibold tabular-nums">{outcome.otpDemoCode}</span>
+            {outcome.verificationStatus === "PENDING" && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                This transaction is on hold. You&apos;ll need to verify your identity before a one-time
+                code is issued.
               </div>
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => handleOpenChange(false)}>
                 Close
               </Button>
-              {outcome.otpChallengeId ? (
-                <Button onClick={() => router.push(`/verify/otp?challengeId=${outcome.otpChallengeId}`)}>
-                  Verify now
+              {outcome.verificationStatus === "PENDING" && transactionId ? (
+                <Button onClick={() => router.push(`/verify/session/${transactionId}`)}>
+                  Review &amp; verify
                 </Button>
               ) : (
                 transactionId && (

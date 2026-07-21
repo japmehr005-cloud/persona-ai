@@ -3,7 +3,7 @@
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 export interface RiskDistributionPoint {
-  tier: "LOW" | "MEDIUM" | "HIGH";
+  tier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   count: number;
 }
 
@@ -11,12 +11,14 @@ const TIER_LABELS: Record<RiskDistributionPoint["tier"], string> = {
   LOW: "Low",
   MEDIUM: "Medium",
   HIGH: "High",
+  CRITICAL: "Critical",
 };
 
 const TIER_COLORS: Record<RiskDistributionPoint["tier"], string> = {
   LOW: "var(--color-success)",
   MEDIUM: "var(--color-warning)",
   HIGH: "var(--color-destructive)",
+  CRITICAL: "var(--color-destructive)",
 };
 
 export function RiskDistributionBar({ data }: { data: RiskDistributionPoint[] }) {

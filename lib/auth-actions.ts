@@ -8,6 +8,7 @@ import { z } from "zod";
 import { signIn, signOut } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { createTotpLoginChallenge, getPendingTotpLoginChallenge } from "@/services/auth/login-challenge";
 
 const LOGIN_ATTEMPT_LIMIT = 8;
 const LOGIN_ATTEMPT_WINDOW_MS = 5 * 60 * 1000;
@@ -47,6 +48,22 @@ export async function loginAction(
     return { error: "Too many login attempts. Please wait a few minutes and try again." };
   }
 
+  // Accounts with 2FA enabled never complete sign-in here — password is
+  // checked up front (so a wrong password never reveals 2FA is enrolled),
+  // then control hands off to /login/verify-2fa for the TOTP step. Accounts
+  // without 2FA fall through to the unchanged single-step signIn below.
+  const user = await prisma.user.findUnique({
+    where: { email: parsed.data.email.toLowerCase() },
+    include: { twoFactorCredential: { select: { enabled: true } } },
+  });
+  if (user) {
+    const passwordValid = await bcrypt.compare(parsed.data.password, user.passwordHash);
+    if (passwordValid && user.twoFactorCredential?.enabled) {
+      const token = await createTotpLoginChallenge(user.id);
+      redirect(`/login/verify-2fa?token=${token}`);
+    }
+  }
+
   try {
     await signIn("credentials", {
       email: parsed.data.email,
@@ -56,6 +73,53 @@ export async function loginAction(
   } catch (error) {
     if (error instanceof AuthError) {
       return { error: "Invalid email or password." };
+    }
+    throw error;
+  }
+
+  return {};
+}
+
+export interface VerifyTwoFactorActionState {
+  error?: string;
+}
+
+const verifyTwoFactorSchema = z.object({
+  token: z.string().min(1),
+  code: z.string().min(6, "Enter the 6-digit code from your authenticator app.").max(8),
+});
+
+export async function verifyTwoFactorLoginAction(
+  _prevState: VerifyTwoFactorActionState,
+  formData: FormData
+): Promise<VerifyTwoFactorActionState> {
+  const parsed = verifyTwoFactorSchema.safeParse({
+    token: formData.get("token"),
+    code: formData.get("code"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Enter a valid code." };
+  }
+
+  const challenge = await getPendingTotpLoginChallenge(parsed.data.token);
+  if (!challenge) {
+    return { error: "This sign-in session has expired. Please sign in again." };
+  }
+
+  const rateLimit = checkRateLimit(`2fa-login:${challenge.userId}`, 8, 5 * 60 * 1000);
+  if (!rateLimit.allowed) {
+    return { error: "Too many attempts. Please wait a few minutes and try again." };
+  }
+
+  try {
+    await signIn("credentials", {
+      challengeToken: parsed.data.token,
+      code: parsed.data.code,
+      redirectTo: "/dashboard",
+    });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return { error: "Invalid or expired code. Please try again." };
     }
     throw error;
   }

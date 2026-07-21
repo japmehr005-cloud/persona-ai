@@ -17,7 +17,8 @@ export interface AlertDetail {
     category: string;
     riskAssessment: {
       score: number;
-      tier: "LOW" | "MEDIUM" | "HIGH";
+      tier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+      confidence: number;
       explanation: string;
       otpRequired: boolean;
       factors: { code: string; label: string; detail: string; contribution: number }[];
@@ -57,6 +58,7 @@ export async function getAlertDetail(userId: string, alertId: string): Promise<A
             ? {
                 score: alert.transaction.riskAssessment.score,
                 tier: alert.transaction.riskAssessment.tier,
+                confidence: alert.transaction.riskAssessment.confidence,
                 explanation: alert.transaction.riskAssessment.explanation,
                 otpRequired: alert.transaction.riskAssessment.otpRequired,
                 factors: alert.transaction.riskAssessment.factors.map((factor) => ({

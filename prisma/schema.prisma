@@ -31,18 +31,28 @@ model User {
   lastName       String
   role           UserRole @default(CUSTOMER)
   isDemo         Boolean  @default(false)
+  // Legacy single-threshold OTP trigger, superseded by UserSettings'
+  // mediumRiskThreshold/highRiskThreshold (see Phase 8). Kept in place,
+  // unused by new code paths, rather than dropped outright.
   otpThreshold   Int      @default(71)
+  // Incremented by "Logout all devices" (see Phase 8); the Auth.js session
+  // callback rejects any JWT whose embedded version doesn't match this.
+  sessionVersion Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  accounts            Account[]
-  behavioralProfile   BehavioralProfile?
-  devices             Device[]
-  sessions            Session[]
-  alerts              Alert[]
-  importJobs          ImportJob[]
-  auditLogs           AuditLog[]
-  contextSignals      ContextSignal[]
+  accounts              Account[]
+  behavioralProfile     BehavioralProfile?
+  devices               Device[]
+  sessions              Session[]
+  alerts                Alert[]
+  importJobs            ImportJob[]
+  auditLogs             AuditLog[]
+  contextSignals        ContextSignal[]
+  settings              UserSettings?
+  twoFactorCredential   TwoFactorCredential?
+  webAuthnCredentials   WebAuthnCredential[]
+  pendingAuthChallenges PendingAuthChallenge[]
 
   @@map("users")
 }
@@ -145,7 +155,8 @@ model BehavioralProfile {
   stdDevAmount Decimal  @db.Decimal(14, 2)
   txPerDay     Decimal  @db.Decimal(8, 2)
   topMerchants Json // Array<{ merchant: string; count: number; totalAmount: number }>
-  activeHours  Json // 7x24 matrix of relative activity frequency
+  activeHours  Json // 24-slot matrix of relative activity frequency by hour
+  activeDays   Json? // 7-slot matrix of relative activity frequency by weekday (Sun=0)
   sampleSize   Int
   updatedAt    DateTime @updatedAt
   createdAt    DateTime @default(now())
@@ -196,6 +207,20 @@ enum RiskTier {
   LOW
   MEDIUM
   HIGH
+  CRITICAL
+}
+
+// Tracks the "context session" a HIGH/CRITICAL assessment opens for the
+// High-Risk Verification flow: PENDING while awaiting the customer's
+// Cancel/Verify Identity decision, then VERIFIED (proceeded to CB-OTP),
+// EXPIRED (session window elapsed), or REJECTED (customer cancelled).
+// Stays NONE for LOW/MEDIUM assessments, which never open a session.
+enum VerificationStatus {
+  NONE
+  PENDING
+  VERIFIED
+  EXPIRED
+  REJECTED
 }
 
 model RiskAssessment {
@@ -206,7 +231,25 @@ model RiskAssessment {
   tier          RiskTier
   explanation   String
   otpRequired   Boolean     @default(false)
-  createdAt     DateTime    @default(now())
+  // Model confidence in this assessment (0-100), derived from behavioral
+  // baseline sample size and the number of corroborating factors.
+  confidence            Int                @default(70)
+  verificationStatus    VerificationStatus @default(NONE)
+  verificationExpiresAt DateTime?
+  sessionToken          String?
+  createdAt             DateTime           @default(now())
+
+  // Snapshot of the behavioral baseline and device-trust signal exactly as
+  // they were at scoring time, for the explainability panel (Section 6).
+  // Deliberately captured here rather than re-derived later, since the
+  // live BehavioralProfile keeps moving forward as new transactions land —
+  // an audit/explanation should reflect what the engine actually knew when
+  // it made this decision, not what it knows now.
+  baselineAvgAmount    Decimal? @db.Decimal(14, 2)
+  baselineP95Amount    Decimal? @db.Decimal(14, 2)
+  baselineMedianAmount Decimal? @db.Decimal(14, 2)
+  baselineSampleSize   Int?
+  deviceTrusted        Boolean?
 
   factors RiskFactor[]
 
@@ -328,4 +371,89 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 8 — Settings, real 2FA/biometric auth, and risk-engine v2 support
+// ---------------------------------------------------------------------------
+
+model UserSettings {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Profile
+  phone        String?
+  organization String?
+
+  // Security preferences (2FA/biometric enrollment itself lives in
+  // TwoFactorCredential/WebAuthnCredential; those tables are the source of
+  // truth for "enabled", not a duplicated flag here)
+  emailAlertsEnabled Boolean @default(true)
+  smsAlertsEnabled   Boolean @default(false)
+
+  // Risk Engine tuning — mirrors and supersedes User.otpThreshold.
+  // Server-clamped on write: medium in [10,40], high in [40,79], so a
+  // customer can never raise their own threshold into CRITICAL territory.
+  adaptiveLearningEnabled Boolean @default(true)
+  mediumRiskThreshold     Int     @default(25)
+  highRiskThreshold       Int     @default(60)
+  riskEngineDemoMode      Boolean @default(false)
+
+  // Developer settings (only surfaced in the UI for demo accounts)
+  showRiskDebugPanel Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_settings")
+}
+
+model TwoFactorCredential {
+  id         String    @id @default(cuid())
+  userId     String    @unique
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  secret     String
+  enabled    Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  verifiedAt DateTime?
+
+  @@map("two_factor_credentials")
+}
+
+model WebAuthnCredential {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String    @unique
+  publicKey    String
+  counter      Int       @default(0)
+  deviceLabel  String
+  transports   Json?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  @@map("webauthn_credentials")
+}
+
+enum PendingAuthChallengeKind {
+  TOTP_LOGIN
+  WEBAUTHN_LOGIN
+}
+
+// Short-lived bridge between step 1 (password check) and step 2 (TOTP or
+// WebAuthn) of a multi-factor login, so the Credentials provider's
+// single-shot authorize() can hand off to a second screen without ever
+// establishing a real session until both steps succeed.
+model PendingAuthChallenge {
+  id        String                   @id @default(cuid())
+  userId    String
+  user      User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String                   @unique
+  kind      PendingAuthChallengeKind
+  expiresAt DateTime
+  consumed  Boolean                  @default(false)
+  createdAt DateTime                 @default(now())
+
+  @@map("pending_auth_challenges")
 }

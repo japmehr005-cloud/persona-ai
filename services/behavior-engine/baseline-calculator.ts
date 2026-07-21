@@ -19,6 +19,8 @@ export interface BehavioralBaseline {
   topMerchants: MerchantFrequency[];
   /** Relative frequency of spending transactions per hour of day (0-23), summing to 1. */
   activeHours: number[];
+  /** Relative frequency of spending transactions per weekday (0=Sun..6=Sat), summing to 1. */
+  activeDays: number[];
   sampleSize: number;
 }
 
@@ -80,11 +82,15 @@ export function calculateBehavioralBaseline(
     .slice(0, TOP_MERCHANT_LIMIT);
 
   const hourCounts = new Array(24).fill(0);
+  const dayCounts = new Array(7).fill(0);
   for (const tx of transactions) {
     hourCounts[tx.date.getHours()] += 1;
+    dayCounts[tx.date.getDay()] += 1;
   }
   const hourTotal = hourCounts.reduce((sum, v) => sum + v, 0) || 1;
   const activeHours = hourCounts.map((count) => count / hourTotal);
+  const dayTotal = dayCounts.reduce((sum, v) => sum + v, 0) || 1;
+  const activeDays = dayCounts.map((count) => count / dayTotal);
 
   return {
     avgAmount,
@@ -94,6 +100,7 @@ export function calculateBehavioralBaseline(
     txPerDay,
     topMerchants,
     activeHours,
+    activeDays,
     sampleSize,
   };
 }

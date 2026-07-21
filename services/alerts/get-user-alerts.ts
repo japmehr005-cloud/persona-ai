@@ -11,7 +11,7 @@ export interface AlertRow {
   transactionId: string | null;
   transactionMerchant: string | null;
   transactionAmount: number | null;
-  riskTier: "LOW" | "MEDIUM" | "HIGH" | null;
+  riskTier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
   riskScore: number | null;
   riskExplanation: string | null;
   otpRequired: boolean;

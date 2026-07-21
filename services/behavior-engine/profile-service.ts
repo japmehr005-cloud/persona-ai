@@ -60,6 +60,7 @@ export async function recalculateBehavioralProfile(userId: string): Promise<Reca
       txPerDay: baseline.txPerDay,
       topMerchants: baseline.topMerchants as unknown as Prisma.InputJsonValue,
       activeHours: baseline.activeHours as unknown as Prisma.InputJsonValue,
+      activeDays: baseline.activeDays as unknown as Prisma.InputJsonValue,
       sampleSize: baseline.sampleSize,
     },
     update: {
@@ -71,6 +72,7 @@ export async function recalculateBehavioralProfile(userId: string): Promise<Reca
       txPerDay: baseline.txPerDay,
       topMerchants: baseline.topMerchants as unknown as Prisma.InputJsonValue,
       activeHours: baseline.activeHours as unknown as Prisma.InputJsonValue,
+      activeDays: baseline.activeDays as unknown as Prisma.InputJsonValue,
       sampleSize: baseline.sampleSize,
     },
   });

@@ -6,12 +6,13 @@ import { requireUser } from "@/lib/session";
 import {
   clearContextSignals,
   injectContextSignal,
+  type SignalSubtype,
   type SimulatedSignalType,
 } from "@/services/context-signals/inject-signal";
 
-export async function injectContextSignalAction(type: SimulatedSignalType) {
+export async function injectContextSignalAction(type: SimulatedSignalType, subtype?: SignalSubtype) {
   const user = await requireUser();
-  await injectContextSignal(user.id, type);
+  await injectContextSignal(user.id, type, subtype);
   revalidatePath("/dev/context-simulator");
 }
 

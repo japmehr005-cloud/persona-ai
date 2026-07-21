@@ -6,6 +6,11 @@ import { CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
 
 import { verifyOtpAction, type VerifyOtpActionResult } from "@/features/security/otp-actions";
 import { OtpTimer } from "@/features/security/otp-timer";
+import {
+  OtpLifecycleStepper,
+  type OtpLifecycleFailure,
+  type OtpLifecycleStage,
+} from "@/components/shared/otp-lifecycle-stepper";
 import { Button } from "@/components/ui/button";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
@@ -18,6 +23,29 @@ const FAILURE_MESSAGES: Record<NonNullable<VerifyOtpActionResult["reason"]>, str
 };
 
 type TerminalState = "approved" | "denied" | "expired" | "already-verified" | "inactive" | null;
+
+/** Maps this form's terminal state to the CB-OTP lifecycle stage/failure
+ * shown by the shared stepper. By the time this form is mounted, the
+ * session is already Created → Device Verified → OTP Generated (the
+ * High-Risk Verification flow completed those stages before ever issuing
+ * this challenge), so the stepper only needs to resolve the final two. */
+function lifecycleFor(terminalState: TerminalState): {
+  stage: OtpLifecycleStage;
+  failure: OtpLifecycleFailure | null;
+} {
+  switch (terminalState) {
+    case "approved":
+    case "already-verified":
+      return { stage: "transfer-complete", failure: null };
+    case "expired":
+      return { stage: "otp-generated", failure: "expired" };
+    case "denied":
+    case "inactive":
+      return { stage: "otp-generated", failure: "rejected" };
+    default:
+      return { stage: "otp-generated", failure: null };
+  }
+}
 
 /** Maps the challenge's status at initial page load to a terminal state, for
  * cases where the user revisits a link for a challenge that was already
@@ -88,71 +116,84 @@ export function OtpVerificationForm({
     setCode("");
   };
 
+  const { stage, failure } = lifecycleFor(terminalState);
+  const stepper = <OtpLifecycleStepper currentStage={stage} failure={failure} />;
+
   if (terminalState === "approved") {
     return (
-      <div className="flex flex-col items-center gap-3 py-6 text-center">
-        <span className="flex size-12 items-center justify-center rounded-full bg-success/10 text-success">
-          <CheckCircle2 className="size-6" />
-        </span>
-        <div>
-          <p className="text-sm font-medium text-foreground">Transaction approved</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Verification succeeded and the transaction has been completed.
-          </p>
+      <div className="space-y-5">
+        {stepper}
+        <div className="flex flex-col items-center gap-3 py-6 text-center">
+          <span className="flex size-12 items-center justify-center rounded-full bg-success/10 text-success">
+            <CheckCircle2 className="size-6" />
+          </span>
+          <div>
+            <p className="text-sm font-medium text-foreground">Transaction approved</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Verification succeeded and the transaction has been completed.
+            </p>
+          </div>
+          <Button onClick={() => router.push(`/transactions/${transactionId}`)}>View transaction</Button>
         </div>
-        <Button onClick={() => router.push(`/transactions/${transactionId}`)}>View transaction</Button>
       </div>
     );
   }
 
   if (terminalState === "denied" || terminalState === "expired") {
     return (
-      <div className="flex flex-col items-center gap-3 py-6 text-center">
-        <span className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-          <ShieldAlert className="size-6" />
-        </span>
-        <div>
-          <p className="text-sm font-medium text-foreground">
-            {terminalState === "expired" ? "Verification expired" : "Transaction denied"}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {terminalState === "expired"
-              ? "The code expired before it was verified, so the transaction was not completed."
-              : "Too many incorrect attempts. For your protection, this transaction was not completed."}
-          </p>
+      <div className="space-y-5">
+        {stepper}
+        <div className="flex flex-col items-center gap-3 py-6 text-center">
+          <span className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+            <ShieldAlert className="size-6" />
+          </span>
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              {terminalState === "expired" ? "Verification expired" : "Transaction denied"}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {terminalState === "expired"
+                ? "The code expired before it was verified, so the transaction was not completed."
+                : "Too many incorrect attempts. For your protection, this transaction was not completed."}
+            </p>
+          </div>
+          <Button variant="outline" onClick={() => router.push(`/transactions/${transactionId}`)}>
+            View transaction
+          </Button>
         </div>
-        <Button variant="outline" onClick={() => router.push(`/transactions/${transactionId}`)}>
-          View transaction
-        </Button>
       </div>
     );
   }
 
   if (terminalState === "already-verified" || terminalState === "inactive") {
     return (
-      <div className="flex flex-col items-center gap-3 py-6 text-center">
-        <span className="flex size-12 items-center justify-center rounded-full bg-accent text-accent-foreground">
-          <ShieldAlert className="size-6" />
-        </span>
-        <div>
-          <p className="text-sm font-medium text-foreground">
-            {terminalState === "already-verified" ? "Already verified" : "Verification failed"}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {terminalState === "already-verified"
-              ? "This transaction was already verified and approved."
-              : "This verification challenge is no longer active. Check the transaction for its current status."}
-          </p>
+      <div className="space-y-5">
+        {stepper}
+        <div className="flex flex-col items-center gap-3 py-6 text-center">
+          <span className="flex size-12 items-center justify-center rounded-full bg-accent text-accent-foreground">
+            <ShieldAlert className="size-6" />
+          </span>
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              {terminalState === "already-verified" ? "Already verified" : "Verification failed"}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {terminalState === "already-verified"
+                ? "This transaction was already verified and approved."
+                : "This verification challenge is no longer active. Check the transaction for its current status."}
+            </p>
+          </div>
+          <Button variant="outline" onClick={() => router.push(`/transactions/${transactionId}`)}>
+            View transaction
+          </Button>
         </div>
-        <Button variant="outline" onClick={() => router.push(`/transactions/${transactionId}`)}>
-          View transaction
-        </Button>
       </div>
     );
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {stepper}
       <div className="flex flex-col items-center gap-3">
         <InputOTP
           maxLength={6}

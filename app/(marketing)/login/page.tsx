@@ -32,6 +32,11 @@ export default async function LoginPage({
           Demo workspace is being provisioned. Please try again shortly.
         </p>
       )}
+      {error === "2fa-expired" && (
+        <p className="text-center text-xs text-muted-foreground">
+          That sign-in session expired. Please sign in again.
+        </p>
+      )}
     </div>
   );
 }

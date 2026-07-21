@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireUser } from "@/lib/session";
@@ -46,6 +47,17 @@ export async function confirmCsvImportAction(
       csvText: parsed.data.csvText,
       mapping: parsed.data.mapping,
     });
+
+    // Every other mutating action in the app revalidates the routes it
+    // affects; this one was missing that call, which left the dashboard's
+    // client Router Cache entry stale (balance/spending/behavioral snapshot
+    // kept showing pre-import data) until a hard reload. Recalculating the
+    // behavioral profile inside runCsvImport happens before this point, so
+    // by the time we revalidate, every dependent page is safe to re-render.
+    revalidatePath("/dashboard");
+    revalidatePath("/transactions");
+    revalidatePath("/security/behavior");
+
     return { ok: true, result };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Import failed unexpectedly.";

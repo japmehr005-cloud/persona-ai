@@ -67,19 +67,23 @@ export async function runCsvImport(params: {
     });
   });
 
-  if (transactionsToCreate.length > 0) {
-    await prisma.transaction.createMany({ data: transactionsToCreate });
-  }
-
-  await prisma.importJob.update({
-    where: { id: job.id },
-    data: {
-      status: "COMPLETED",
-      importedCount: transactionsToCreate.length,
-      errorLog: errors.length > 0 ? errors : undefined,
-      completedAt: new Date(),
-    },
-  });
+  // Persist the imported rows and mark the job complete atomically, so a
+  // crash or aborted request between the two writes can never leave an
+  // ImportJob marked COMPLETED without its transactions (or vice versa).
+  await prisma.$transaction([
+    ...(transactionsToCreate.length > 0
+      ? [prisma.transaction.createMany({ data: transactionsToCreate })]
+      : []),
+    prisma.importJob.update({
+      where: { id: job.id },
+      data: {
+        status: "COMPLETED",
+        importedCount: transactionsToCreate.length,
+        errorLog: errors.length > 0 ? errors : undefined,
+        completedAt: new Date(),
+      },
+    }),
+  ]);
 
   if (transactionsToCreate.length > 0) {
     await recalculateBehavioralProfile(userId);
