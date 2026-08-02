@@ -18,6 +18,7 @@ import { usePulseTime } from "@/components/maps/deck/pulse-controller";
 import { resolveInitialView } from "@/components/maps/india-viewport";
 import { toneForMarker, MARKER_TONE_HEX } from "@/components/maps/marker-tones";
 import { useSupercluster, type ClusterPointProperties } from "@/components/maps/use-supercluster";
+import { useAccessibilityOptional } from "@/features/accessibility/accessibility-provider";
 
 export interface SecurityMapProps {
   markers: SecurityMapMarker[];
@@ -36,6 +37,8 @@ function SecurityMap({ markers, path = [], selectedId, onSelect, className }: Se
   const [zoom, setZoom] = useState(4.2);
   const [bounds, setBounds] = useState<BBox | null>(null);
   const time = usePulseTime(true);
+  const a11y = useAccessibilityOptional();
+  const markerScale = a11y?.largeText || a11y?.seniorMode ? 1.45 : 1;
 
   const initialView = useMemo(() => resolveInitialView(markers), [markers]);
 
@@ -73,7 +76,7 @@ function SecurityMap({ markers, path = [], selectedId, onSelect, className }: Se
           tone: "current",
           kind: "cluster",
           count: cluster.properties.point_count ?? 0,
-          radiusPx: 16,
+          radiusPx: Math.round(16 * markerScale),
           label: `${cluster.properties.point_count ?? 0} login sessions`,
         });
         continue;
@@ -89,12 +92,12 @@ function SecurityMap({ markers, path = [], selectedId, onSelect, className }: Se
         tone,
         sequenceNumber: marker.sequenceNumber,
         kind: "point",
-        radiusPx: selected ? 18 : marker.isCurrent ? 14 : 11,
+        radiusPx: Math.round((selected ? 18 : marker.isCurrent ? 14 : 11) * markerScale),
         label: `Login ${marker.sequenceNumber} · ${marker.city ?? "unknown"}`,
       });
     }
     return result;
-  }, [clusters, markers, markersById, selectedId]);
+  }, [clusters, markers, markersById, selectedId, markerScale]);
 
   const arcs = useMemo(() => pathSegmentsToArcs(markers, path), [markers, path]);
 

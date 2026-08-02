@@ -1,9 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { streamText } from "ai";
 
-import {
-  ASSISTANT_SYSTEM_PROMPT,
-} from "@/services/assistant/context-builder";
+import { buildAssistantSystemPrompt } from "@/services/assistant/context-builder";
 import type { AssistantProvider, AssistantStreamParams } from "@/services/assistant/providers/types";
 
 export const openaiProvider: AssistantProvider = {
@@ -16,10 +14,11 @@ export const openaiProvider: AssistantProvider = {
 
     const openai = createOpenAI({ apiKey });
     const contextJson = JSON.stringify(params.context);
+    const systemPrompt = buildAssistantSystemPrompt(params.context);
 
     const result = streamText({
       model: openai(process.env.OPENAI_ASSISTANT_MODEL ?? "gpt-4o-mini"),
-      system: `${ASSISTANT_SYSTEM_PROMPT}\n\nCustomer context JSON:\n${contextJson}`,
+      system: `${systemPrompt}\n\nCustomer context JSON:\n${contextJson}`,
       messages: params.messages
         .filter((m) => m.role === "user" || m.role === "assistant")
         .map((m) => ({ role: m.role, content: m.content })),

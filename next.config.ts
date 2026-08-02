@@ -1,4 +1,7 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 // MapLibre needs cross-origin style/tile fetches + blob workers.
 // Reverse geocoding (Nominatim) and optional IP geo providers also need
@@ -32,7 +35,8 @@ const SECURITY_HEADERS = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // Geolocation is required for real login-map coordinates. Restricted to
   // same-origin only — never granted to third-party iframes.
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self), payment=()" },
+  // Microphone is required for Persona AI voice assistance (STT). Same-origin only.
+  { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(self), payment=()" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
 ];
 
@@ -47,4 +51,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

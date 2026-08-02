@@ -32,7 +32,13 @@ export type VoicePermissionState = "unknown" | "granted" | "denied" | "unsupport
 
 export function useVoiceAssistant(options: {
   onFinalTranscript: (text: string) => void;
+  /** BCP-47 language for STT/TTS (e.g. en-IN, hi-IN, pa-IN). */
+  lang?: string;
+  /** Slightly slower speech for Senior Mode. */
+  seniorMode?: boolean;
 }) {
+  const lang = options.lang ?? "en-IN";
+  const seniorMode = options.seniorMode ?? false;
   const [recognitionSupported, setRecognitionSupported] = useState(false);
   const [ttsSupported, setTtsSupported] = useState(false);
   const [permission, setPermission] = useState<VoicePermissionState>("unknown");
@@ -168,7 +174,7 @@ export function useVoiceAssistant(options: {
     const recognition = new Ctor();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = "en-IN";
+    recognition.lang = lang;
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => setListening(true);
@@ -243,7 +249,8 @@ export function useVoiceAssistant(options: {
     if (!clean) return;
     setLastSpoken(clean);
     const utterance = new SpeechSynthesisUtterance(clean.slice(0, 1200));
-    utterance.rate = 0.96;
+    utterance.lang = lang;
+    utterance.rate = seniorMode ? 0.88 : 0.96;
     utterance.onstart = () => setSpeaking(true);
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);

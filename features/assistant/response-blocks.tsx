@@ -1,9 +1,12 @@
 "use client";
 
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
+  ChevronDown,
+  ChevronUp,
   PiggyBank,
   ShieldAlert,
   ShieldCheck,
@@ -16,7 +19,41 @@ import { Progress } from "@/components/ui/progress";
 import { CategoryDonutChart } from "@/components/charts/dashboard-charts";
 import { SpendingAreaChart } from "@/components/charts/dashboard-charts";
 import type { AssistantBlock } from "@/services/assistant/blocks";
+import { useAccessibilityOptional } from "@/features/accessibility/accessibility-provider";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
+
+function DetailsDisclosure({
+  title,
+  children,
+  forceOpen,
+}: {
+  title: string;
+  children: ReactNode;
+  forceOpen: boolean;
+}) {
+  const t = useTranslations("common");
+  const [open, setOpen] = useState(false);
+  if (forceOpen) return <div>{children}</div>;
+
+  return (
+    <div className="rounded-xl border border-border bg-card">
+      <Button
+        type="button"
+        variant="ghost"
+        className="flex h-auto min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left text-base"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+      >
+        <span className="font-medium">
+          {open ? t("hideDetails") : t("showDetails")} — {title}
+        </span>
+        {open ? <ChevronUp className="size-5 shrink-0" /> : <ChevronDown className="size-5 shrink-0" />}
+      </Button>
+      {open ? <div className="border-t border-border p-3">{children}</div> : null}
+    </div>
+  );
+}
 
 function tierBadge(tier: string | null) {
   if (!tier) return "secondary";
@@ -32,12 +69,21 @@ export function ResponseBlocks({
   blocks: AssistantBlock[];
   onPrompt: (prompt: string) => void;
 }) {
+  const a11y = useAccessibilityOptional();
+  const seniorMode = a11y?.seniorMode ?? false;
+
   if (blocks.length === 0) return null;
 
   return (
     <div className="mt-4 flex flex-col gap-3">
       {blocks.map((block, index) => {
         const key = `${block.type}-${index}`;
+        const wrapDense = (node: ReactNode, title: string) => (
+          <DetailsDisclosure key={key} title={title} forceOpen={!seniorMode}>
+            {node}
+          </DetailsDisclosure>
+        );
+
         switch (block.type) {
           case "risk-summary":
             return (
@@ -121,8 +167,9 @@ export function ResponseBlocks({
               </Card>
             );
           case "transaction-table":
-            return (
-              <Card key={key} className="shadow-sm">
+          case "transaction-table":
+            return wrapDense(
+              <Card className="shadow-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">{block.title}</CardTitle>
                 </CardHeader>
@@ -166,33 +213,36 @@ export function ResponseBlocks({
                     </tbody>
                   </table>
                 </CardContent>
-              </Card>
+              </Card>,
+              block.title
             );
           case "category-chart":
-            return (
-              <Card key={key} className="shadow-sm">
+            return wrapDense(
+              <Card className="shadow-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">{block.title}</CardTitle>
                 </CardHeader>
                 <CardContent className="h-[220px]">
                   <CategoryDonutChart data={block.data} />
                 </CardContent>
-              </Card>
+              </Card>,
+              block.title
             );
           case "trend-chart":
-            return (
-              <Card key={key} className="shadow-sm">
+            return wrapDense(
+              <Card className="shadow-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">{block.title}</CardTitle>
                 </CardHeader>
                 <CardContent className="h-[220px]">
                   <SpendingAreaChart data={block.data} />
                 </CardContent>
-              </Card>
+              </Card>,
+              block.title
             );
           case "merchant-list":
-            return (
-              <Card key={key} className="shadow-sm">
+            return wrapDense(
+              <Card className="shadow-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">{block.title}</CardTitle>
                 </CardHeader>
@@ -212,7 +262,8 @@ export function ResponseBlocks({
                     </div>
                   ))}
                 </CardContent>
-              </Card>
+              </Card>,
+              block.title
             );
           case "timeline":
             return (

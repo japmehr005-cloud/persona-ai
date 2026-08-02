@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { loginAction, type LoginActionState } from "@/lib/auth-actions";
 import { getDeviceFingerprint } from "@/lib/device-fingerprint";
@@ -20,6 +21,7 @@ import {
 const initialState: LoginActionState = {};
 
 export function LoginForm() {
+  const t = useTranslations("auth");
   const [state, formAction, isPending] = useActionState(loginAction, initialState);
   const [fingerprintHash, setFingerprintHash] = useState("");
 
@@ -35,18 +37,18 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader>
-        <CardTitle className="text-xl">Sign in</CardTitle>
-        <CardDescription>Access your Persona AI dashboard.</CardDescription>
+        <CardTitle className="text-xl">{t("loginTitle")}</CardTitle>
+        <CardDescription>{t("loginDescription")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form action={formAction} className="space-y-4" noValidate>
           <input type="hidden" name="fingerprintHash" value={fingerprintHash} />
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("email")}</Label>
             <Input id="email" name="email" type="email" autoComplete="email" required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t("password")}</Label>
             <Input
               id="password"
               name="password"
@@ -62,7 +64,7 @@ export function LoginForm() {
           )}
           <Button type="submit" className="w-full" disabled={isPending}>
             {isPending && <Loader2 className="animate-spin" />}
-            Sign in
+            {isPending ? t("signingIn") : t("signIn")}
           </Button>
         </form>
         <div className="mt-6 space-y-2 rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
@@ -77,9 +79,9 @@ export function LoginForm() {
           </p>
         </div>
         <p className="mt-4 text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{" "}
+          {t("noAccount")}{" "}
           <Link href="/register" className="font-medium text-primary hover:underline">
-            Create one
+            {t("createAccount")}
           </Link>
         </p>
       </CardContent>

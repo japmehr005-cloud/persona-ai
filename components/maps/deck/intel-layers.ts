@@ -182,7 +182,8 @@ export function buildCustomerLayers(input: {
       data: points.filter((p) => p.kind === "point" && typeof p.sequenceNumber === "number"),
       getPosition: (d) => d.position,
       getText: (d) => String(d.sequenceNumber),
-      getSize: (d) => (d.id === selectedId ? 13 : 11),
+      // Scale label with marker radius (Senior Mode enlarges radiusPx upstream).
+      getSize: (d) => Math.round((d.id === selectedId ? 13 : 11) * (d.radiusPx / 11)),
       getColor: [11, 18, 32, 255],
       getTextAnchor: "middle",
       getAlignmentBaseline: "center",
@@ -196,7 +197,7 @@ export function buildCustomerLayers(input: {
       data: points.filter((p) => p.kind === "cluster"),
       getPosition: (d) => d.position,
       getText: (d) => String(d.count ?? 0),
-      getSize: 12,
+      getSize: (d) => Math.round(12 * (d.radiusPx / 16)),
       getColor: [226, 232, 240, 255],
       getTextAnchor: "middle",
       getAlignmentBaseline: "center",

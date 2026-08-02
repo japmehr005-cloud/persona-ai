@@ -79,17 +79,46 @@ function composeLoginRisk(ctx: AssistantContextPayload): { markdown: string; met
     tx.factors.some((f) => f.code.startsWith("GOVERNMENT_INTELLIGENCE"))
   );
 
+  const simple = Boolean(ctx.accessibility?.simplifiedLanguage || ctx.accessibility?.seniorMode);
   const reasons: string[] = [];
   if (focus) {
-    if (!focus.trusted) reasons.push("Sign-in location or device is not marked trusted");
-    if (focus.isSuspicious) reasons.push("Risk Engine flagged this session as suspicious");
+    if (!focus.trusted) {
+      reasons.push(
+        simple
+          ? "This sign-in used a phone or place we have not confirmed as yours yet"
+          : "Sign-in location or device is not marked trusted"
+      );
+    }
+    if (focus.isSuspicious) {
+      reasons.push(
+        simple
+          ? "This sign-in looked unusual compared with how you normally log in"
+          : "Risk Engine flagged this session as suspicious"
+      );
+    }
     if (focus.city) reasons.push(`City observed: ${focus.city}${focus.country ? `, ${focus.country}` : ""}`);
   }
-  if (untrustedCount > 0) reasons.push(`${untrustedCount} device(s) on your account are not trusted`);
-  if (finHits.length > 0) reasons.push(`Related FIN event: ${finHits[0].title}`);
-  if (govHint) reasons.push("A recent payment involved a government-intelligence (FRI/MNRL) signal");
+  if (untrustedCount > 0) {
+    reasons.push(
+      simple
+        ? `${untrustedCount} phone(s) on your account are not marked as trusted`
+        : `${untrustedCount} device(s) on your account are not trusted`
+    );
+  }
+  if (finHits.length > 0) {
+    reasons.push(simple ? `Related security note: ${finHits[0].title}` : `Related FIN event: ${finHits[0].title}`);
+  }
+  if (govHint) {
+    reasons.push(
+      simple
+        ? "A recent payment involved a government fraud warning"
+        : "A recent payment involved a government-intelligence (FRI/MNRL) signal"
+    );
+  }
   if (reasons.length === 0) {
-    reasons.push("No elevated login anomalies in the latest sessions");
+    reasons.push(
+      simple ? "Your recent sign-ins look normal" : "No elevated login anomalies in the latest sessions"
+    );
   }
 
   // Derive a display score from session signals (context may not store login score)
@@ -101,40 +130,64 @@ function composeLoginRisk(ctx: AssistantContextPayload): { markdown: string; met
   score = Math.min(99, score);
   const tier = score >= 80 ? "CRITICAL" : score >= 60 ? "HIGH" : score >= 35 ? "MEDIUM" : "LOW";
 
-  const markdown = [
-    `## Login risk assessment`,
-    ``,
-    focus
-      ? `I reviewed your latest sign-in activity for **${focus.label}**${
-          focus.city ? ` from **${focus.city}**` : ""
-        }.`
-      : `I reviewed your recent sign-in activity.`,
-    ``,
-    `### Risk summary`,
-    ``,
-    `| Field | Value |`,
-    `| --- | --- |`,
-    `| Risk level | **${tier}** |`,
-    `| Risk score | **${score}/100** |`,
-    `| Device trust | ${focus?.trusted ? "Trusted posture" : "Not fully trusted"} |`,
-    `| Flagged suspicious | ${focus?.isSuspicious ? "Yes" : "No"} |`,
-    ``,
-    `### Why this matters`,
-    ...reasons.map((r) => `- ${r}`),
-    ``,
-    `### Recommendation`,
-    `- Verify whether **${focus?.label ?? "this device"}** belongs to you.`,
-    `- Enable or confirm multi-factor authentication in Settings.`,
-    `- Review recent transactions for unexpected activity.`,
-    `- If you do not recognize the login, open Security Map and file a fraud report.`,
-    ``,
-    `### Related context`,
-    `- Previous trusted device: **${trustedDevice?.label ?? "None marked yet"}**`,
-    `- Latest observed location: **${focus?.city ?? "Unknown"}**, **${focus?.country ?? "Unknown"}**`,
-    `- Open alerts: **${ctx.dashboard.openAlertCount}**`,
-    ``,
-    `> Persona AI combines device trust, FIN events, and your behavior profile. The rule-based Risk Engine remains authoritative — this explanation helps you act with clarity.`,
-  ].join("\n");
+  const markdown = simple
+    ? [
+        `## Is this sign-in safe?`,
+        ``,
+        focus
+          ? `I checked your latest sign-in on **${focus.label}**${
+              focus.city ? ` from **${focus.city}**` : ""
+            }.`
+          : `I checked your recent sign-ins.`,
+        ``,
+        `### What we found`,
+        `- Risk level: **${tier}** (${score}/100)`,
+        `- Phone trust: ${focus?.trusted ? "Looks familiar" : "Not fully confirmed"}`,
+        `- Unusual activity: ${focus?.isSuspicious ? "Yes" : "No"}`,
+        ``,
+        `### Why this matters`,
+        ...reasons.map((r) => `- ${r}`),
+        ``,
+        `### What you should do`,
+        `- Confirm that **${focus?.label ?? "this phone"}** is yours.`,
+        `- Turn on an extra sign-in check in Settings if it is not already on.`,
+        `- Look at recent payments for anything unexpected.`,
+        `- If you do not recognize the sign-in, open the Security Map and report it.`,
+      ].join("\n")
+    : [
+        `## Login risk assessment`,
+        ``,
+        focus
+          ? `I reviewed your latest sign-in activity for **${focus.label}**${
+              focus.city ? ` from **${focus.city}**` : ""
+            }.`
+          : `I reviewed your recent sign-in activity.`,
+        ``,
+        `### Risk summary`,
+        ``,
+        `| Field | Value |`,
+        `| --- | --- |`,
+        `| Risk level | **${tier}** |`,
+        `| Risk score | **${score}/100** |`,
+        `| Device trust | ${focus?.trusted ? "Trusted posture" : "Not fully trusted"} |`,
+        `| Flagged suspicious | ${focus?.isSuspicious ? "Yes" : "No"} |`,
+        ``,
+        `### Why this matters`,
+        ...reasons.map((r) => `- ${r}`),
+        ``,
+        `### Recommendation`,
+        `- Verify whether **${focus?.label ?? "this device"}** belongs to you.`,
+        `- Enable or confirm multi-factor authentication in Settings.`,
+        `- Review recent transactions for unexpected activity.`,
+        `- If you do not recognize the login, open Security Map and file a fraud report.`,
+        ``,
+        `### Related context`,
+        `- Previous trusted device: **${trustedDevice?.label ?? "None marked yet"}**`,
+        `- Latest observed location: **${focus?.city ?? "Unknown"}**, **${focus?.country ?? "Unknown"}**`,
+        `- Open alerts: **${ctx.dashboard.openAlertCount}**`,
+        ``,
+        `> Persona AI combines device trust, FIN events, and your behavior profile. The rule-based Risk Engine remains authoritative — this explanation helps you act with clarity.`,
+      ].join("\n");
 
   const blocks: AssistantBlock[] = [
     {

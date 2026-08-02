@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import type { NavItem } from "@/components/layout/nav-config";
@@ -16,20 +17,22 @@ function isActive(pathname: string, href: string) {
 export function SidebarNav({
   items,
   onNavigate,
+  translateLabels = false,
 }: {
   items: NavItem[];
   onNavigate?: () => void;
+  /** When true, resolve `labelKey` via `nav.*` messages (customer shell). */
+  translateLabels?: boolean;
 }) {
   const pathname = usePathname();
+  const t = useTranslations("nav");
+
+  const labelFor = (item: { labelKey: string; label: string }) =>
+    translateLabels ? t(item.labelKey as Parameters<typeof t>[0]) : item.label;
 
   return (
-    <nav className="flex flex-1 flex-col gap-1 px-3">
+    <nav className="flex flex-1 flex-col gap-1 px-3" aria-label="Primary">
       {items.map((item) => {
-        // A group is "active" (and its children expanded) either when its
-        // own href matches, or when the current page is one of its
-        // children — e.g. visiting "/security/devices" should keep the
-        // "Security" group open even though its own href points at
-        // "/security/behavior", not a shared parent path.
         const hasActiveChild = item.children?.some((child) => pathname === child.href) ?? false;
         const active = isActive(pathname, item.href) || hasActiveChild;
         const Icon = item.icon;
@@ -48,7 +51,7 @@ export function SidebarNav({
               aria-current={active ? "page" : undefined}
             >
               <Icon className="size-4 shrink-0" />
-              {item.label}
+              {labelFor(item)}
             </Link>
             {item.children && active && (
               <div className="mt-1 ml-6 flex flex-col gap-1 border-l border-sidebar-border pl-3">
@@ -68,7 +71,7 @@ export function SidebarNav({
                       )}
                     >
                       <ChildIcon className="size-3.5 shrink-0" />
-                      {child.label}
+                      {labelFor(child)}
                     </Link>
                   );
                 })}

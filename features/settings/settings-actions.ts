@@ -11,9 +11,20 @@ import { updateSecurityPreferences } from "@/services/settings/update-security-p
 import { updateRiskEngineSettings } from "@/services/settings/update-risk-engine-settings";
 import { updateDeveloperSettings } from "@/services/settings/update-developer-settings";
 import { updatePreferredAuthMethod } from "@/services/settings/update-auth-method";
+import {
+  updateAccessibilityPreferences,
+  type AccessibilityPreferences,
+} from "@/services/settings/update-accessibility-preferences";
+import {
+  A11Y_COOKIE_NAME,
+  cascadeSeniorModeOn,
+  serializeA11yCookie,
+} from "@/lib/accessibility";
+import { LOCALE_COOKIE_NAME, uiLocaleToAppLocale } from "@/i18n/config";
 import { logoutAllDevices } from "@/services/settings/logout-all-devices";
 import { resetDemoData, ResetDemoDataError } from "@/services/settings/reset-demo-data";
 import { RISK_THRESHOLD_BOUNDS } from "@/lib/constants";
+import { cookies } from "next/headers";
 import {
   confirmTotpEnrollment,
   disableTotp,
@@ -117,6 +128,101 @@ export async function updateDeveloperSettingsAction(
   await updateDeveloperSettings(user.id, parsed.data.showRiskDebugPanel);
   revalidatePath("/settings");
   return { ok: true, data: undefined };
+}
+
+const accessibilitySchema = z.object({
+  seniorMode: z.boolean(),
+  largeText: z.boolean(),
+  highContrast: z.boolean(),
+  reducedMotion: z.boolean(),
+  voiceResponses: z.boolean(),
+  uiLocale: z.enum(["EN", "HI", "PA"]),
+  a11yOnboardingSeen: z.boolean().optional(),
+});
+
+async function persistA11yCookie(prefs: AccessibilityPreferences): Promise<void> {
+  const jar = await cookies();
+  jar.set(A11Y_COOKIE_NAME, serializeA11yCookie(prefs), {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: "lax",
+    httpOnly: false,
+  });
+  jar.set(LOCALE_COOKIE_NAME, uiLocaleToAppLocale(prefs.uiLocale), {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: "lax",
+    httpOnly: false,
+  });
+}
+
+export async function updateAccessibilityPreferencesAction(
+  input: z.infer<typeof accessibilitySchema>
+): Promise<ActionResult<AccessibilityPreferences>> {
+  const user = await requireUser();
+  const parsed = accessibilitySchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid accessibility preferences." };
+  }
+
+  // Cascade is applied client-side when Senior Mode is toggled on so users
+  // can still turn individual options off afterward without being overwritten.
+  const next: AccessibilityPreferences = {
+    seniorMode: parsed.data.seniorMode,
+    largeText: parsed.data.largeText,
+    highContrast: parsed.data.highContrast,
+    reducedMotion: parsed.data.reducedMotion,
+    voiceResponses: parsed.data.voiceResponses,
+    uiLocale: parsed.data.uiLocale,
+    a11yOnboardingSeen: parsed.data.a11yOnboardingSeen ?? true,
+  };
+
+  const saved = await updateAccessibilityPreferences(user.id, next);
+  await persistA11yCookie(saved);
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
+  revalidatePath("/assistant");
+  return { ok: true, data: saved };
+}
+
+/** First-login modal: Enable Senior Mode or dismiss permanently. */
+export async function completeA11yOnboardingAction(
+  enableSeniorMode: boolean
+): Promise<ActionResult<AccessibilityPreferences>> {
+  const user = await requireUser();
+  const existing = await prisma.userSettings.findUnique({
+    where: { userId: user.id },
+    select: {
+      seniorMode: true,
+      largeText: true,
+      highContrast: true,
+      reducedMotion: true,
+      voiceResponses: true,
+      uiLocale: true,
+      a11yOnboardingSeen: true,
+    },
+  });
+
+  let next: AccessibilityPreferences = {
+    seniorMode: existing?.seniorMode ?? false,
+    largeText: existing?.largeText ?? false,
+    highContrast: existing?.highContrast ?? false,
+    reducedMotion: existing?.reducedMotion ?? false,
+    voiceResponses: existing?.voiceResponses ?? false,
+    uiLocale: existing?.uiLocale ?? "EN",
+    a11yOnboardingSeen: true,
+  };
+
+  if (enableSeniorMode) {
+    next = cascadeSeniorModeOn(next);
+  }
+
+  const saved = await updateAccessibilityPreferences(user.id, next);
+  await persistA11yCookie(saved);
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
+  revalidatePath("/assistant");
+  return { ok: true, data: saved };
 }
 
 const TOTP_ENROLLMENT_LIMIT = 5;

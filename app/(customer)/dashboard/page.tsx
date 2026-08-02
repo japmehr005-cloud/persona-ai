@@ -5,7 +5,6 @@ import {
   Wallet,
   TrendingDown,
   ShieldCheck,
-  Upload,
   Receipt,
   BellRing,
   Activity,
@@ -18,9 +17,7 @@ import { formatCurrency } from "@/lib/format";
 import { getDashboardSummary } from "@/services/dashboard/get-dashboard-summary";
 import { getSpendingInsights } from "@/services/dashboard/get-spending-insights";
 import { getBehavioralSnapshot } from "@/services/dashboard/get-behavioral-snapshot";
-import { SimulatePaymentDialog } from "@/features/transactions/simulate-payment-dialog";
 import { PageContainer } from "@/components/layout/page-container";
-import { PageHeader } from "@/components/layout/page-header";
 import { MetricCard } from "@/components/shared/metric-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SecurityStatusBadge } from "@/components/shared/security-status-badge";
@@ -28,6 +25,7 @@ import { AlertList } from "@/components/shared/alert-list";
 import { TransactionsPreviewTable } from "@/components/shared/transactions-preview-table";
 import { SpendingAreaChart, CategoryDonutChart } from "@/components/charts/dashboard-charts";
 import { Button } from "@/components/ui/button";
+import { DashboardHeader } from "@/features/dashboard/dashboard-header";
 import {
   Card,
   CardContent,
@@ -60,21 +58,7 @@ export default async function DashboardPage() {
 
   return (
     <PageContainer>
-      <PageHeader
-        title={`Good day, ${dbUser?.firstName ?? "there"}`}
-        description="Here's your account overview."
-        actions={
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline">
-              <Link href="/transactions/import">
-                <Upload />
-                Import statements
-              </Link>
-            </Button>
-            {accounts.length > 0 && <SimulatePaymentDialog accounts={accounts} />}
-          </div>
-        }
-      />
+      <DashboardHeader firstName={dbUser?.firstName} accounts={accounts} />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard

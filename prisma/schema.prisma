@@ -522,6 +522,17 @@ model UserSettings {
   // than this preference for a suspicious login; it can never relax below it.
   preferredAuthMethod PreferredAuthMethod?
 
+  // Accessibility / Senior Mode — additive profile layered on the customer UI.
+  // Does not replace the default interface; toggled from Settings and an
+  // optional first-login modal. uiLocale drives voice + Persona AI language only.
+  seniorMode           Boolean  @default(false)
+  largeText            Boolean  @default(false)
+  highContrast         Boolean  @default(false)
+  reducedMotion        Boolean  @default(false)
+  voiceResponses       Boolean  @default(false)
+  uiLocale             UiLocale @default(EN)
+  a11yOnboardingSeen   Boolean  @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -532,6 +543,12 @@ enum PreferredAuthMethod {
   PASSWORD_OTP
   PASSWORD_BIOMETRIC
   AUTHENTICATOR
+}
+
+enum UiLocale {
+  EN
+  HI
+  PA
 }
 
 model TwoFactorCredential {

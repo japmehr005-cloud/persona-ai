@@ -4,10 +4,10 @@ import { BellOff } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { getUserAlerts } from "@/services/alerts/get-user-alerts";
 import { PageContainer } from "@/components/layout/page-container";
-import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertRow } from "@/features/alerts/alert-row";
+import { TranslatedPageHeader } from "@/features/i18n/translated-page-header";
 
 export const metadata: Metadata = { title: "Alerts" };
 
@@ -17,10 +17,7 @@ export default async function AlertsPage() {
 
   return (
     <PageContainer>
-      <PageHeader
-        title="Alerts"
-        description="Transactions the Adaptive Risk Engine flagged for your attention."
-      />
+      <TranslatedPageHeader namespace="alerts" />
 
       {alerts.length === 0 ? (
         <EmptyState

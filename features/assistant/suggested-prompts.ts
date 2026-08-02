@@ -1,3 +1,33 @@
+/** Stable prompt IDs — labels/prompts resolved via i18n at render time. */
+export const ASSISTANT_PROMPT_IDS = [
+  "fraudScore",
+  "todayActivity",
+  "analyzeSpending",
+  "findSubscriptions",
+  "unusualExpenses",
+  "trustLogin",
+  "compareMonth",
+  "predictMonthEnd",
+  "save5000",
+  "reviewAlerts",
+  "analyzeCategories",
+  "suspiciousTx",
+] as const;
+
+export type AssistantPromptId = (typeof ASSISTANT_PROMPT_IDS)[number];
+
+export const MOBILE_CHIP_IDS = [
+  { id: "fraudRisk" as const, promptId: "fraudScore" as const },
+  { id: "spending" as const, promptId: "analyzeSpending" as const },
+  { id: "budget" as const, promptId: "compareThisMonth" as const },
+  { id: "savings" as const, promptId: "save5000" as const },
+  { id: "subscriptions" as const, promptId: "expensiveSubscriptions" as const },
+  { id: "security" as const, promptId: "reviewAlerts" as const },
+  { id: "recentLogin" as const, promptId: "trustLogin" as const },
+  { id: "unusual" as const, promptId: "unusualExpenses" as const },
+];
+
+/** @deprecated Prefer ASSISTANT_PROMPT_IDS + useTranslations("assistant.prompts") */
 export const ASSISTANT_QUICK_ACTIONS = [
   "Explain my fraud score",
   "Summarize today's activity",
@@ -15,7 +45,7 @@ export const ASSISTANT_QUICK_ACTIONS = [
 
 export const ASSISTANT_SUGGESTED_PROMPTS = ASSISTANT_QUICK_ACTIONS;
 
-/** Short chip labels for mobile horizontal scroller */
+/** @deprecated Prefer MOBILE_CHIP_IDS + useTranslations */
 export const MOBILE_QUICK_CHIPS = [
   { label: "Fraud Risk", prompt: "Explain my fraud score" },
   { label: "Spending", prompt: "Analyze my spending" },

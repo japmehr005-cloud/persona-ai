@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Menu, ShieldCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
@@ -20,10 +21,6 @@ interface AppShellProps {
   children: React.ReactNode;
 }
 
-// Nav items (and the lucide icon components they reference) are computed
-// entirely on the client. Icon components are functions and cannot be
-// serialized across the Server -> Client Component boundary, so callers
-// pass a plain `variant` string instead of a pre-built nav array.
 export function AppShell({
   variant,
   includeDevNav = false,
@@ -33,9 +30,12 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const tCommon = useTranslations("common");
   const sidebarAccent = variant === "admin" ? "admin" : "default";
   const navItems =
     variant === "admin" ? ADMIN_NAV : includeDevNav ? [...CUSTOMER_NAV, DEV_NAV_ITEM] : CUSTOMER_NAV;
+  const translateLabels = variant === "customer";
+  const resolvedBrand = variant === "customer" ? tCommon("appName") : brandLabel;
 
   const sidebarContent = (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -50,7 +50,7 @@ export function AppShell({
             <ShieldCheck className="size-4" />
           </span>
           <span className="text-sm leading-tight">
-            {brandLabel}
+            {resolvedBrand}
             {sidebarAccent === "admin" && (
               <span className="block text-[11px] font-normal text-sidebar-foreground/50">
                 Operations Console
@@ -60,7 +60,11 @@ export function AppShell({
         </Link>
       </div>
       <div className="flex-1 overflow-y-auto py-4">
-        <SidebarNav items={navItems} onNavigate={() => setMobileOpen(false)} />
+        <SidebarNav
+          items={navItems}
+          translateLabels={translateLabels}
+          onNavigate={() => setMobileOpen(false)}
+        />
       </div>
     </div>
   );
@@ -74,7 +78,7 @@ export function AppShell({
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" className="w-72 p-0">
           <VisuallyHidden>
-            <SheetTitle>Navigation</SheetTitle>
+            <SheetTitle>{tCommon("openNavigation")}</SheetTitle>
           </VisuallyHidden>
           {sidebarContent}
         </SheetContent>
@@ -87,7 +91,7 @@ export function AppShell({
             size="icon"
             className="lg:hidden"
             onClick={() => setMobileOpen(true)}
-            aria-label="Open navigation"
+            aria-label={tCommon("openNavigation")}
           >
             <Menu />
           </Button>

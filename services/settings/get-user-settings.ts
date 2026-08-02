@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import type { PreferredAuthMethod } from "@prisma/client";
+import type { PreferredAuthMethod, UiLocale } from "@prisma/client";
 import { DEFAULT_HIGH_RISK_THRESHOLD, DEFAULT_MEDIUM_RISK_THRESHOLD } from "@/lib/constants";
+import { DEFAULT_ACCESSIBILITY_PREFERENCES } from "@/lib/accessibility";
 import { listWebAuthnCredentials, type WebAuthnCredentialView } from "@/services/auth/webauthn";
 
 export interface UserSettingsAccountView {
@@ -39,6 +40,14 @@ export interface UserSettingsView {
   riskEngineDemoMode: boolean;
 
   showRiskDebugPanel: boolean;
+
+  seniorMode: boolean;
+  largeText: boolean;
+  highContrast: boolean;
+  reducedMotion: boolean;
+  voiceResponses: boolean;
+  uiLocale: UiLocale;
+  a11yOnboardingSeen: boolean;
 
   accounts: UserSettingsAccountView[];
 }
@@ -83,6 +92,15 @@ export async function getUserSettingsView(userId: string): Promise<UserSettingsV
     riskEngineDemoMode: settings?.riskEngineDemoMode ?? false,
 
     showRiskDebugPanel: settings?.showRiskDebugPanel ?? false,
+
+    seniorMode: settings?.seniorMode ?? DEFAULT_ACCESSIBILITY_PREFERENCES.seniorMode,
+    largeText: settings?.largeText ?? DEFAULT_ACCESSIBILITY_PREFERENCES.largeText,
+    highContrast: settings?.highContrast ?? DEFAULT_ACCESSIBILITY_PREFERENCES.highContrast,
+    reducedMotion: settings?.reducedMotion ?? DEFAULT_ACCESSIBILITY_PREFERENCES.reducedMotion,
+    voiceResponses: settings?.voiceResponses ?? DEFAULT_ACCESSIBILITY_PREFERENCES.voiceResponses,
+    uiLocale: settings?.uiLocale ?? DEFAULT_ACCESSIBILITY_PREFERENCES.uiLocale,
+    a11yOnboardingSeen:
+      settings?.a11yOnboardingSeen ?? DEFAULT_ACCESSIBILITY_PREFERENCES.a11yOnboardingSeen,
 
     accounts: user.accounts.map((account) => ({
       id: account.id,

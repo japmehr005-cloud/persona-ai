@@ -169,3 +169,148 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Accessibility / Senior Mode — additive profile (customer UI).              */
+/* Default interface is unchanged when these attributes are absent.           */
+/* -------------------------------------------------------------------------- */
+
+html[data-a11y-large-text] {
+  --a11y-font-size: 1.125rem; /* 18px */
+  font-size: var(--a11y-font-size);
+}
+
+@media (min-width: 1024px) {
+  html[data-a11y-large-text] {
+    --a11y-font-size: 1.25rem; /* 20px desktop */
+    font-size: var(--a11y-font-size);
+  }
+}
+
+html[data-a11y-large-text] body {
+  line-height: 1.6;
+}
+
+/* Touch targets + denser readable chrome */
+html[data-a11y-large-text] [data-slot="button"],
+html[data-a11y-senior] [data-slot="button"] {
+  min-height: 3rem; /* 48px */
+  min-width: 3rem;
+  font-size: 1rem;
+  gap: 0.625rem;
+  padding-inline: 1.125rem;
+}
+
+html[data-a11y-senior] [data-slot="button"][data-size="default"],
+html[data-a11y-senior] [data-slot="button"]:not([data-size]) {
+  min-height: 3.5rem; /* 56px preferred for primary */
+}
+
+html[data-a11y-large-text] [data-slot="button"][data-size="icon"],
+html[data-a11y-senior] [data-slot="button"][data-size="icon"] {
+  min-height: 3rem;
+  min-width: 3rem;
+  padding-inline: 0;
+}
+
+html[data-a11y-large-text] nav a,
+html[data-a11y-senior] nav a {
+  min-height: 3rem;
+  font-size: 1rem;
+  padding-block: 0.625rem;
+}
+
+html[data-a11y-large-text] label,
+html[data-a11y-senior] label {
+  font-size: 1rem;
+}
+
+html[data-a11y-large-text] table,
+html[data-a11y-senior] table {
+  font-size: 1rem;
+}
+
+html[data-a11y-large-text] th,
+html[data-a11y-large-text] td,
+html[data-a11y-senior] th,
+html[data-a11y-senior] td {
+  padding-block: 0.875rem;
+  padding-inline: 1rem;
+}
+
+html[data-a11y-large-text] .text-xs {
+  font-size: 0.9375rem !important; /* ~15px — no tiny text */
+  line-height: 1.5;
+}
+
+html[data-a11y-large-text] .text-sm {
+  font-size: 1rem !important;
+  line-height: 1.55;
+}
+
+html[data-a11y-large-text] h1 {
+  font-size: clamp(1.75rem, 2.5vw, 2.25rem);
+}
+
+html[data-a11y-large-text] h2 {
+  font-size: clamp(1.5rem, 2vw, 1.875rem);
+}
+
+html[data-a11y-large-text] h3 {
+  font-size: clamp(1.25rem, 1.5vw, 1.5rem);
+}
+
+html[data-a11y-high-contrast] {
+  --foreground: #0a0a0a;
+  --card-foreground: #0a0a0a;
+  --popover-foreground: #0a0a0a;
+  --muted-foreground: #3f3f46;
+  --secondary-foreground: #18181b;
+  --border: #27272a;
+  --input: #27272a;
+  --primary: #1e3a8a;
+  --ring: #1e3a8a;
+  --sidebar-border: #27272a;
+  --sidebar-foreground: #0a0a0a;
+}
+
+html[data-a11y-high-contrast] [data-slot="card"],
+html[data-a11y-high-contrast] .border {
+  border-color: var(--border);
+  border-width: 1.5px;
+}
+
+html[data-a11y-high-contrast] [data-slot="badge"],
+html[data-a11y-high-contrast] .badge {
+  border: 1.5px solid currentColor;
+  font-weight: 600;
+}
+
+html[data-a11y-reduced-motion] *,
+html[data-a11y-reduced-motion] *::before,
+html[data-a11y-reduced-motion] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Admin readability — mild polish only, never Senior Mode scale */
+.admin-readable table {
+  font-size: 0.9375rem;
+}
+
+.admin-readable th,
+.admin-readable td {
+  padding-block: 0.75rem;
+  padding-inline: 1rem;
+}
+
+.admin-readable {
+  --muted-foreground: #52525b;
+  --border: #d4d4d8;
+}
+
+.admin-readable [data-slot="card"] {
+  border-color: var(--border);
+}

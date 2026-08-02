@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ReportDialog } from "@/features/fin/report-dialog";
+import { useAccessibilityOptional } from "@/features/accessibility/accessibility-provider";
 
 function buildBehaviorComparison(marker: SecurityMapMarker): string {
   if (marker.isImpossibleTravel) {
@@ -52,15 +53,32 @@ function buildBehaviorComparison(marker: SecurityMapMarker): string {
   return "This sign-in is consistent with your established device and location history.";
 }
 
-function DetailRow({ icon: Icon, label, value }: { icon: typeof Fingerprint; label: string; value: string }) {
+function DetailRow({
+  icon: Icon,
+  label,
+  value,
+  large,
+}: {
+  icon: typeof Fingerprint;
+  label: string;
+  value: string;
+  large?: boolean;
+}) {
   return (
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/5 text-slate-200">
-        <Icon className="size-4" />
+    <div className={cn("flex items-start gap-3", large && "gap-4 py-1")}>
+      <span
+        className={cn(
+          "mt-0.5 flex shrink-0 items-center justify-center rounded-lg bg-white/5 text-slate-200",
+          large ? "size-11" : "size-8"
+        )}
+      >
+        <Icon className={large ? "size-5" : "size-4"} />
       </span>
       <div className="min-w-0">
-        <p className="text-xs text-slate-400">{label}</p>
-        <p className="truncate text-sm font-medium text-slate-100">{value}</p>
+        <p className={cn("text-slate-400", large ? "text-sm" : "text-xs")}>{label}</p>
+        <p className={cn("truncate font-medium text-slate-100", large ? "text-base" : "text-sm")}>
+          {value}
+        </p>
       </div>
     </div>
   );
@@ -80,14 +98,17 @@ function SequenceBadge({ number, className }: { number: number; className?: stri
   );
 }
 
-function TrustDeviceAction({ deviceId }: { deviceId: string }) {
+function TrustDeviceAction({ deviceId, large }: { deviceId: string; large?: boolean }) {
   const router = useRouter();
   const [isPending, setIsPending] = useState(false);
 
   return (
     <Button
       variant="outline"
-      className="w-full border-white/15 bg-white/5 text-slate-100 hover:bg-white/10 hover:text-slate-50"
+      className={cn(
+        "w-full border-white/15 bg-white/5 text-slate-100 hover:bg-white/10 hover:text-slate-50",
+        large && "min-h-14 text-base"
+      )}
       disabled={isPending}
       onClick={async () => {
         setIsPending(true);
@@ -109,16 +130,24 @@ function TrustDeviceAction({ deviceId }: { deviceId: string }) {
 }
 
 function IntelBody({ marker, onClose }: { marker: SecurityMapMarker; onClose?: () => void }) {
+  const a11y = useAccessibilityOptional();
+  const large = Boolean(a11y?.largeText || a11y?.seniorMode);
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* Fixed header */}
-      <div className="shrink-0 border-b border-white/10 px-4 py-4">
+      <div className={cn("shrink-0 border-b border-white/10 px-4 py-4", large && "px-5 py-5")}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <SequenceBadge number={marker.sequenceNumber} />
+            <SequenceBadge
+              number={marker.sequenceNumber}
+              className={large ? "size-10 text-sm" : undefined}
+            />
             <div className="min-w-0">
-              <p className="truncate text-base font-semibold text-slate-50">{marker.deviceLabel}</p>
-              <p className="mt-0.5 text-xs text-slate-400">
+              <p className={cn("truncate font-semibold text-slate-50", large ? "text-lg" : "text-base")}>
+                {marker.deviceLabel}
+              </p>
+              <p className={cn("mt-0.5 text-slate-400", large ? "text-sm" : "text-xs")}>
                 {format(marker.occurredAt, "MMM d, yyyy 'at' h:mm a")}
               </p>
             </div>
@@ -127,7 +156,7 @@ function IntelBody({ marker, onClose }: { marker: SecurityMapMarker; onClose?: (
             <Button
               variant="ghost"
               size="icon"
-              className="size-8 shrink-0 text-slate-300"
+              className={cn("shrink-0 text-slate-300", large ? "min-h-12 min-w-12" : "size-8")}
               onClick={onClose}
               aria-label="Close panel"
             >
@@ -138,11 +167,14 @@ function IntelBody({ marker, onClose }: { marker: SecurityMapMarker; onClose?: (
 
         <div className="mt-3 flex flex-wrap gap-2">
           {marker.isCurrent && (
-            <Badge variant="outline" className="border-sky-400/40 text-sky-300">
+            <Badge variant="outline" className={cn("border-sky-400/40 text-sky-300", large && "text-sm")}>
               Current session
             </Badge>
           )}
-          <Badge className={cn("w-fit gap-1.5", RISK_COLOR_BADGE_CLASS[marker.riskColor])} variant="outline">
+          <Badge
+            className={cn("w-fit gap-1.5", RISK_COLOR_BADGE_CLASS[marker.riskColor], large && "text-sm")}
+            variant="outline"
+          >
             {marker.riskColor === "red" ? (
               <AlertTriangle className="size-3" />
             ) : marker.riskColor === "green" ? (
@@ -153,7 +185,7 @@ function IntelBody({ marker, onClose }: { marker: SecurityMapMarker; onClose?: (
             {RISK_COLOR_LABEL[marker.riskColor]}
           </Badge>
           {marker.isImpossibleTravel && (
-            <Badge variant="destructive" className="gap-1.5">
+            <Badge variant="destructive" className={cn("gap-1.5", large && "text-sm")}>
               <AlertTriangle className="size-3" />
               Impossible travel
             </Badge>
@@ -163,28 +195,33 @@ function IntelBody({ marker, onClose }: { marker: SecurityMapMarker; onClose?: (
 
       {/* Scrollable content only */}
       <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-4 px-4 py-4">
-          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-            <p className="text-xs font-medium text-slate-400">AI explanation</p>
-            <p className="mt-1 text-sm leading-relaxed text-slate-100">{buildBehaviorComparison(marker)}</p>
+        <div className={cn("space-y-4 px-4 py-4", large && "space-y-5 px-5")}>
+          <div className={cn("rounded-xl border border-white/10 bg-white/5 p-3", large && "p-4")}>
+            <p className={cn("font-medium text-slate-400", large ? "text-sm" : "text-xs")}>AI explanation</p>
+            <p className={cn("mt-1 leading-relaxed text-slate-100", large ? "text-base" : "text-sm")}>
+              {buildBehaviorComparison(marker)}
+            </p>
           </div>
 
           <div className="grid grid-cols-1 gap-3">
             <DetailRow
+              large={large}
               icon={MapPin}
               label="Location"
               value={[marker.city, marker.region, marker.country].filter(Boolean).join(", ") || "Unknown"}
             />
-            <DetailRow icon={Globe2} label="Browser" value={marker.browser} />
-            <DetailRow icon={Monitor} label="Operating system" value={marker.os} />
+            <DetailRow large={large} icon={Globe2} label="Browser" value={marker.browser} />
+            <DetailRow large={large} icon={Monitor} label="Operating system" value={marker.os} />
             <DetailRow
+              large={large}
               icon={Fingerprint}
               label="Authentication"
               value={marker.authMethod ? AUTH_METHOD_LABEL[marker.authMethod] : "Not recorded"}
             />
             <DetailRow
+              large={large}
               icon={Fingerprint}
-              label="Device fingerprint"
+              label={large ? "Phone identity code" : "Device fingerprint"}
               value={marker.fingerprintHash ? `${marker.fingerprintHash.slice(0, 18)}…` : "Unavailable"}
             />
           </div>
@@ -239,23 +276,34 @@ function IntelBody({ marker, onClose }: { marker: SecurityMapMarker; onClose?: (
       </ScrollArea>
 
       {/* Pinned actions — always visible */}
-      <div className="shrink-0 space-y-2 border-t border-white/10 bg-[#0b1220]/98 px-4 py-3">
+      <div className={cn("shrink-0 space-y-2 border-t border-white/10 bg-[#0b1220]/98 px-4 py-3", large && "space-y-3 py-4")}>
         <ReportDialog
           type="NOT_ME"
           sessionId={marker.id}
           trigger={
-            <Button variant="outline" className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive">
+            <Button
+              variant="outline"
+              className={cn(
+                "w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive",
+                large && "min-h-14 text-base"
+              )}
+            >
               <ShieldAlert className="size-4" />
               This wasn&apos;t me
             </Button>
           }
         />
-        {marker.deviceId && !marker.deviceTrusted && <TrustDeviceAction deviceId={marker.deviceId} />}
+        {marker.deviceId && !marker.deviceTrusted && (
+          <TrustDeviceAction deviceId={marker.deviceId} large={large} />
+        )}
         <ReportDialog
           type="SUSPICIOUS_LOGIN"
           sessionId={marker.id}
           trigger={
-            <Button variant="secondary" className="w-full bg-white/10 text-slate-100 hover:bg-white/15">
+            <Button
+              variant="secondary"
+              className={cn("w-full bg-white/10 text-slate-100 hover:bg-white/15", large && "min-h-14 text-base")}
+            >
               <AlertTriangle className="size-4" />
               Report suspicious login
             </Button>

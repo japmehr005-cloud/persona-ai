@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { UiLocale } from "@prisma/client";
 import { getDashboardSummary } from "@/services/dashboard/get-dashboard-summary";
 import { getSpendingInsights } from "@/services/dashboard/get-spending-insights";
 import { getBehavioralProfileView } from "@/services/behavior-engine/get-behavioral-profile-view";
@@ -16,6 +17,7 @@ import {
   buildFinancialIntelligence,
   type FinancialIntelligence,
 } from "@/services/assistant/intelligence";
+import { uiLocaleLabel } from "@/lib/accessibility";
 
 export interface AssistantContextPayload {
   generatedAt: string;
@@ -76,6 +78,12 @@ export interface AssistantContextPayload {
     tier: string | null;
     label: string;
   };
+  accessibility: {
+    seniorMode: boolean;
+    simplifiedLanguage: boolean;
+    uiLocale: UiLocale;
+    voiceResponses: boolean;
+  };
 }
 
 export const ASSISTANT_SYSTEM_PROMPT = `You are Persona AI — the flagship financial intelligence copilot for a secure banking platform.
@@ -101,6 +109,38 @@ Rules:
 Block types allowed in meta.blocks: risk-summary, stat-grid, transaction-table, category-chart, trend-chart, merchant-list, timeline, action-row, alert-callout, savings-card.
 Keep JSON valid and compact.`;
 
+const SENIOR_MODE_PROMPT_ADDENDUM = `
+Accessibility / Senior Mode is ON for this customer:
+- Use short paragraphs and bullet lists
+- Give clear recommendations in everyday words
+- Avoid technical jargon (do not say "device fingerprint mismatch", "FRI/MNRL", "FIN cluster")
+- Prefer: "This phone is different from the one you usually use."
+- Prefer: "This payment looks unusual for you."
+- Prefer: "We need an extra check before this can continue."
+- Keep structured meta.blocks for UI, but keep labels plain-language
+- Respond in the customer's preferred language when uiLocale is HI (Hindi) or PA (Punjabi); otherwise English
+`;
+
+export function buildAssistantSystemPrompt(context: AssistantContextPayload): string {
+  const locale = context.accessibility.uiLocale;
+  const languageLine =
+    locale === "HI"
+      ? "Respond in Hindi (Devanagari script) unless the customer wrote in English."
+      : locale === "PA"
+        ? "Respond in Punjabi (Gurmukhi script) unless the customer wrote in English."
+        : `Respond in ${uiLocaleLabel(locale)}.`;
+
+  if (context.accessibility.simplifiedLanguage || context.accessibility.seniorMode) {
+    return `${ASSISTANT_SYSTEM_PROMPT}\n${SENIOR_MODE_PROMPT_ADDENDUM}\n${languageLine}`;
+  }
+
+  if (locale !== "EN") {
+    return `${ASSISTANT_SYSTEM_PROMPT}\n${languageLine}`;
+  }
+
+  return ASSISTANT_SYSTEM_PROMPT;
+}
+
 export async function buildAssistantContext(userId: string): Promise<AssistantContextPayload> {
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
@@ -120,6 +160,7 @@ export async function buildAssistantContext(userId: string): Promise<AssistantCo
     finEvents,
     recentTx,
     profile,
+    settings,
   ] = await Promise.all([
     getDashboardSummary(userId),
     getSpendingInsights(userId),
@@ -147,6 +188,14 @@ export async function buildAssistantContext(userId: string): Promise<AssistantCo
       },
     }),
     prisma.behavioralProfile.findUnique({ where: { userId } }),
+    prisma.userSettings.findUnique({
+      where: { userId },
+      select: {
+        seniorMode: true,
+        voiceResponses: true,
+        uiLocale: true,
+      },
+    }),
   ]);
 
   const merchantsForAi = Array.from(new Set(recentTx.map((tx) => tx.merchant))).slice(0, 5);
@@ -256,6 +305,12 @@ export async function buildAssistantContext(userId: string): Promise<AssistantCo
       score: topRisk?.score ?? null,
       tier: topRisk?.tier ?? null,
       label: topRisk ? `${topRisk.tier} · ${topRisk.score}/100` : dashboard.securityStatus,
+    },
+    accessibility: {
+      seniorMode: settings?.seniorMode ?? false,
+      simplifiedLanguage: settings?.seniorMode ?? false,
+      uiLocale: settings?.uiLocale ?? "EN",
+      voiceResponses: settings?.voiceResponses ?? false,
     },
   };
 }

@@ -23,12 +23,14 @@ import {
 import { ChatMessageList } from "@/features/assistant/chat-message-list";
 import { ConversationSidebar } from "@/features/assistant/conversation-sidebar";
 import {
-  ASSISTANT_QUICK_ACTIONS,
-  MOBILE_QUICK_CHIPS,
+  ASSISTANT_PROMPT_IDS,
+  MOBILE_CHIP_IDS,
 } from "@/features/assistant/suggested-prompts";
 import { useVisualViewportHeight } from "@/features/assistant/use-visual-viewport";
 import { useVoiceAssistant } from "@/features/assistant/use-voice-assistant";
 import { VoicePanel } from "@/features/assistant/voice-panel";
+import { useAccessibilityOptional } from "@/features/accessibility/accessibility-provider";
+import { uiLocaleToSpeechLang } from "@/lib/accessibility";
 import { stripMetaForSpeech } from "@/services/assistant/blocks";
 import type { FinancialInsight } from "@/services/assistant/financial-insights";
 import type {
@@ -36,6 +38,7 @@ import type {
   AssistantThreadView,
 } from "@/services/assistant/thread-service";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface ChatMessage {
   id: string;
@@ -67,8 +70,15 @@ export function AssistantChat({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { height: shellHeight, keyboardOpen } = useVisualViewportHeight(64);
+  const t = useTranslations("assistant");
+  const a11y = useAccessibilityOptional();
+  const seniorMode = a11y?.seniorMode ?? false;
+  const voiceResponses = a11y?.voiceResponses ?? false;
+  const speechLang = uiLocaleToSpeechLang(a11y?.uiLocale ?? "EN");
 
   const voice = useVoiceAssistant({
+    lang: speechLang,
+    seniorMode,
     onFinalTranscript: (text) => {
       setInput(text);
       voiceReplyRef.current = true;
@@ -127,7 +137,7 @@ export function AssistantChat({
       }
 
       const finalText = buffer.trim();
-      if (voiceReplyRef.current && finalText) {
+      if (finalText && (voiceReplyRef.current || voiceResponses)) {
         voice.speak(stripMetaForSpeech(finalText));
       }
 
@@ -145,7 +155,7 @@ export function AssistantChat({
       );
     } catch (err) {
       console.error(err);
-      setError("Persona AI could not respond. Please try again.");
+      setError(t("errorRespond"));
       setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMessage.id));
     } finally {
       voiceReplyRef.current = false;
@@ -244,21 +254,21 @@ export function AssistantChat({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h1 className="truncate text-base font-semibold tracking-tight sm:text-lg">
-                  Persona AI
+                  {t("title")}
                 </h1>
                 <Badge variant="secondary" className="hidden text-xs sm:inline-flex">
                   Copilot
                 </Badge>
               </div>
               <p className="truncate text-xs text-muted-foreground sm:text-sm">
-                {thread.title || "Financial intelligence"}
+                {thread.title || t("description")}
               </p>
             </div>
           </div>
           {voice.speaking ? (
             <Badge variant="outline" className="gap-1.5">
               <Volume2 className="size-3.5" aria-hidden />
-              Speaking
+              {t("voice")}
             </Badge>
           ) : null}
         </header>
@@ -295,43 +305,64 @@ export function AssistantChat({
             )}
           >
             <div className="flex gap-2 md:hidden">
-              {MOBILE_QUICK_CHIPS.map((chip) => (
-                <button
-                  key={chip.label}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void sendMessage(chip.prompt)}
-                  className="min-h-11 shrink-0 rounded-full border bg-muted/50 px-3.5 text-sm font-medium transition hover:bg-muted"
-                >
-                  {chip.label}
-                </button>
-              ))}
+              {MOBILE_CHIP_IDS.map((chip) => {
+                const prompt = t(`prompts.${chip.promptId}`);
+                return (
+                  <button
+                    key={chip.id}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void sendMessage(prompt)}
+                    className="min-h-11 shrink-0 rounded-full border bg-muted/50 px-3.5 text-sm font-medium transition hover:bg-muted"
+                  >
+                    {t(`chips.${chip.id}`)}
+                  </button>
+                );
+              })}
             </div>
             <div className="hidden gap-2 md:flex">
-              {ASSISTANT_QUICK_ACTIONS.map((prompt) => (
-                <button
-                  key={prompt}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void sendMessage(prompt)}
-                  className="min-h-11 shrink-0 rounded-full border bg-muted/40 px-3 text-sm transition hover:bg-muted"
-                >
-                  {prompt}
-                </button>
-              ))}
+              {ASSISTANT_PROMPT_IDS.map((id) => {
+                const prompt = t(`prompts.${id}`);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void sendMessage(prompt)}
+                    className="min-h-11 shrink-0 rounded-full border bg-muted/40 px-3 text-sm transition hover:bg-muted"
+                  >
+                    {prompt}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div className="flex items-end gap-2">
+          <div className={cn("flex items-end gap-2", seniorMode && "gap-3")}>
+            {seniorMode ? (
+              <Button
+                type="button"
+                variant={voiceOpen ? "default" : "secondary"}
+                className={cn(
+                  "min-h-14 min-w-14 shrink-0 gap-2 px-4 text-base",
+                  voice.listening && "ring-2 ring-primary"
+                )}
+                aria-label={t("openVoice")}
+                onClick={() => setVoiceOpen(true)}
+              >
+                <Mic className="size-6" />
+                <span className="hidden sm:inline">{t("voice")}</span>
+              </Button>
+            ) : null}
             <Textarea
               ref={textareaRef}
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Ask Persona AI…"
+              placeholder={t("placeholder")}
               rows={keyboardOpen ? 1 : 2}
               className="max-h-36 min-h-11 flex-1 resize-none text-base shadow-sm"
               disabled={busy}
-              aria-label="Message Persona AI"
+              aria-label={t("placeholder")}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
@@ -343,9 +374,9 @@ export function AssistantChat({
             <Button
               type="button"
               size="icon"
-              className="size-11 shrink-0"
+              className={cn("size-11 shrink-0", seniorMode && "min-h-14 min-w-14 size-14")}
               disabled={busy || !input.trim()}
-              aria-label="Send message"
+              aria-label={t("sendMessage")}
               onClick={() => {
                 voiceReplyRef.current = false;
                 void sendMessage();
@@ -353,16 +384,18 @@ export function AssistantChat({
             >
               <SendHorizontal className="size-5" />
             </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant={voiceOpen ? "secondary" : "outline"}
-              className={cn("size-11 shrink-0", voice.listening && "ring-2 ring-primary")}
-              aria-label="Open voice assistant"
-              onClick={() => setVoiceOpen(true)}
-            >
-              <Mic className="size-5" />
-            </Button>
+            {!seniorMode ? (
+              <Button
+                type="button"
+                size="icon"
+                variant={voiceOpen ? "secondary" : "outline"}
+                className={cn("size-11 shrink-0", voice.listening && "ring-2 ring-primary")}
+                aria-label={t("openVoice")}
+                onClick={() => setVoiceOpen(true)}
+              >
+                <Mic className="size-5" />
+              </Button>
+            ) : null}
           </div>
         </div>
       </section>

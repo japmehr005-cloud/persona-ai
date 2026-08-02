@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { LogOut, Settings, ShieldCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { signOutAction } from "@/lib/auth-actions";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -30,6 +33,8 @@ export function UserMenu({
   email: string;
   role: "CUSTOMER" | "ANALYST" | "ADMIN";
 }) {
+  const t = useTranslations("userMenu");
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
@@ -47,14 +52,14 @@ export function UserMenu({
           <DropdownMenuItem asChild>
             <Link href="/settings">
               <Settings />
-              Settings
+              {t("settings")}
             </Link>
           </DropdownMenuItem>
         ) : (
           <DropdownMenuItem asChild>
             <Link href="/dashboard">
               <ShieldCheck />
-              Customer view
+              {t("customerView")}
             </Link>
           </DropdownMenuItem>
         )}
@@ -63,7 +68,7 @@ export function UserMenu({
           <DropdownMenuItem asChild variant="destructive">
             <button type="submit" className="w-full">
               <LogOut />
-              Sign out
+              {t("signOut")}
             </button>
           </DropdownMenuItem>
         </form>

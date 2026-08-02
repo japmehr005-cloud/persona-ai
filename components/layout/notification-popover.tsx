@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,10 +27,13 @@ const severityDot: Record<NotificationAlert["severity"], string> = {
 };
 
 export function NotificationPopover({ alerts }: { alerts: NotificationAlert[] }) {
+  const t = useTranslations("notifications");
+  const tCommon = useTranslations("common");
+
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
+        <Button variant="ghost" size="icon" className="relative" aria-label={tCommon("notifications")}>
           <Bell />
           {alerts.length > 0 && (
             <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground">
@@ -38,13 +44,11 @@ export function NotificationPopover({ alerts }: { alerts: NotificationAlert[] })
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-0">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <span className="text-sm font-medium">Open alerts</span>
+          <span className="text-sm font-medium">{t("title")}</span>
           <Badge variant="outline">{alerts.length}</Badge>
         </div>
         {alerts.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-            No open alerts. We&apos;ll notify you if something looks unusual.
-          </p>
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">{t("empty")}</p>
         ) : (
           <ul className="max-h-72 overflow-y-auto">
             {alerts.map((alert) => (
@@ -69,7 +73,7 @@ export function NotificationPopover({ alerts }: { alerts: NotificationAlert[] })
         )}
         <div className="border-t border-border p-2">
           <Button asChild variant="ghost" size="sm" className="w-full">
-            <Link href="/alerts">View all alerts</Link>
+            <Link href="/alerts">{t("viewAllAlerts")}</Link>
           </Button>
         </div>
       </PopoverContent>

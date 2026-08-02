@@ -13,26 +13,28 @@ export default async function AdminLayout({
   const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
 
   return (
-    <AppShell
-      variant="admin"
-      brandHref="/admin"
-      brandLabel="Persona AI"
-      header={
-        <div className="flex flex-1 items-center gap-4">
-          <Badge variant="outline" className="hidden sm:inline-flex">
-            Internal · Fraud Operations
-          </Badge>
-          <div className="ml-auto flex items-center gap-1">
-            <UserMenu
-              name={dbUser ? `${dbUser.firstName} ${dbUser.lastName}` : "Analyst"}
-              email={dbUser?.email ?? ""}
-              role={user.role}
-            />
+    <div className="admin-readable">
+      <AppShell
+        variant="admin"
+        brandHref="/admin"
+        brandLabel="Persona AI"
+        header={
+          <div className="flex flex-1 items-center gap-4">
+            <Badge variant="outline" className="hidden sm:inline-flex">
+              Internal · Fraud Operations
+            </Badge>
+            <div className="ml-auto flex items-center gap-1">
+              <UserMenu
+                name={dbUser ? `${dbUser.firstName} ${dbUser.lastName}` : "Analyst"}
+                email={dbUser?.email ?? ""}
+                role={user.role}
+              />
+            </div>
           </div>
-        </div>
-      }
-    >
-      {children}
-    </AppShell>
+        }
+      >
+        {children}
+      </AppShell>
+    </div>
   );
 }
