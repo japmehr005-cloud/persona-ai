@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { buildAssistantContext } from "@/services/assistant/context-builder";
+import { groundedProvider } from "@/services/assistant/providers/grounded-provider";
 import { getAssistantProvider } from "@/services/assistant/providers/registry";
 import { appendAssistantMessages } from "@/services/assistant/thread-service";
 
@@ -66,11 +67,23 @@ export async function POST(request: Request) {
 
     const context = await buildAssistantContext(userId);
     const provider = getAssistantProvider();
-    const response = await provider.streamChat({
-      userId,
-      context,
-      messages: parsed.data.messages,
-    });
+    let response: Response;
+    try {
+      response = await provider.streamChat({
+        userId,
+        context,
+        messages: parsed.data.messages,
+      });
+    } catch (providerError) {
+      // Never fail the demo on OpenAI credit/network errors — fall back to grounded.
+      if (provider.id === "grounded") throw providerError;
+      console.error("[assistant/chat] provider failed; using grounded", providerError);
+      response = await groundedProvider.streamChat({
+        userId,
+        context,
+        messages: parsed.data.messages,
+      });
+    }
 
     // Tee the stream so we can persist the assistant reply after streaming.
     const [clientStream, persistStream] = response.body

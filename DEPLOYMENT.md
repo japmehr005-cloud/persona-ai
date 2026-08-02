@@ -53,9 +53,9 @@ On Vercel, set both `AUTH_URL` and `NEXTAUTH_URL` to `https://<your-vercel-domai
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | Optional | Enables OpenAI-backed assistant; otherwise grounded responder is used. |
-| `OPENAI_ASSISTANT_MODEL` | Optional | Default `gpt-4o-mini`. |
-| `ASSISTANT_PROVIDER` | Optional | `auto` \| `openai` \| `grounded`. |
+| `ASSISTANT_PROVIDER` | Recommended | Use `grounded` in production (default). Persona AI answers from transaction history, FIN, risk engine, ML classifier, and account data only — no OpenAI calls. |
+| `OPENAI_API_KEY` | Optional | Only used when `ASSISTANT_PROVIDER=openai` (non-production / explicit opt-in). Leave empty in production. |
+| `OPENAI_ASSISTANT_MODEL` | Optional | Default `gpt-4o-mini` (ignored when grounded). |
 
 Maps / geolocation use keyless public providers (OpenFreeMap, Nominatim, ipwho.is / ipapi.co) — no map API keys required.
 
