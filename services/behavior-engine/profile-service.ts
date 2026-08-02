@@ -29,7 +29,7 @@ export async function recalculateBehavioralProfile(userId: string): Promise<Reca
       amount: { lt: 0 },
       date: { gte: windowStart },
     },
-    select: { date: true, amount: true, merchant: true },
+    select: { date: true, amount: true, merchant: true, category: true },
   });
 
   const oldestDate = transactions.reduce(
@@ -43,7 +43,12 @@ export async function recalculateBehavioralProfile(userId: string): Promise<Reca
   }
 
   const baseline = calculateBehavioralBaseline(
-    transactions.map((tx) => ({ date: tx.date, amount: Number(tx.amount), merchant: tx.merchant }))
+    transactions.map((tx) => ({
+      date: tx.date,
+      amount: Number(tx.amount),
+      merchant: tx.merchant,
+      category: tx.category,
+    }))
   );
 
   const existing = await prisma.behavioralProfile.findUnique({ where: { userId } });
@@ -61,6 +66,8 @@ export async function recalculateBehavioralProfile(userId: string): Promise<Reca
       topMerchants: baseline.topMerchants as unknown as Prisma.InputJsonValue,
       activeHours: baseline.activeHours as unknown as Prisma.InputJsonValue,
       activeDays: baseline.activeDays as unknown as Prisma.InputJsonValue,
+      categoryFrequency: baseline.categoryFrequency as unknown as Prisma.InputJsonValue,
+      monthlyCategorySpend: baseline.monthlyCategorySpend as unknown as Prisma.InputJsonValue,
       sampleSize: baseline.sampleSize,
     },
     update: {
@@ -73,6 +80,8 @@ export async function recalculateBehavioralProfile(userId: string): Promise<Reca
       topMerchants: baseline.topMerchants as unknown as Prisma.InputJsonValue,
       activeHours: baseline.activeHours as unknown as Prisma.InputJsonValue,
       activeDays: baseline.activeDays as unknown as Prisma.InputJsonValue,
+      categoryFrequency: baseline.categoryFrequency as unknown as Prisma.InputJsonValue,
+      monthlyCategorySpend: baseline.monthlyCategorySpend as unknown as Prisma.InputJsonValue,
       sampleSize: baseline.sampleSize,
     },
   });

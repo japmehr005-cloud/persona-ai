@@ -17,5 +17,26 @@ services:
       timeout: 5s
       retries: 10
 
+  # Transaction Intelligence FastAPI sidecar (Phase 2).
+  # Next.js calls TRANSACTION_AI_URL (default http://127.0.0.1:8001).
+  transaction-ai:
+    build:
+      context: ./ml/transaction-ai
+    container_name: securebank-transaction-ai
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+
 volumes:
   securebank-postgres-data:

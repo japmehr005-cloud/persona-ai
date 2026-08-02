@@ -39,6 +39,10 @@ const FRAGMENT_BUILDERS: Record<string, (factor: RiskFactorResult, date: Date) =
   GOVERNMENT_INTELLIGENCE_ELEVATED: () => "involves a party flagged with elevated risk by government fraud intelligence",
   GOVERNMENT_INTELLIGENCE_HIGH: () => "involves a party flagged by government fraud intelligence (FRI/MNRL)",
   REAL_LOCATION_UNTRUSTED: () => "originated from a sign-in location we haven't yet confirmed as trusted",
+  AI_CATEGORY_DEVIATION: () =>
+    "was classified by Transaction Intelligence into a spending category that is rare for you",
+  AI_CATEGORY_LOW_CONFIDENCE: () =>
+    "has an uncertain Transaction Intelligence category on a larger-than-usual amount",
 };
 
 /**

@@ -9,6 +9,11 @@ import type {
 import { getFinRiskFactors, type FinRiskFactorResult } from "@/services/fin/risk-contribution";
 import { findSimilarDevicesAcrossUsers } from "@/services/fin/device-intelligence";
 import { checkFriForBeneficiary } from "@/services/government-intelligence/fri-service";
+import {
+  classifyTransactionNarration,
+  type TransactionAiClassification,
+} from "@/services/transaction-ai/client";
+import { parseCategoryFrequency } from "@/services/transaction-ai/ai-factor-evaluators";
 import type { GovRiskLevel, GovSource } from "@prisma/client";
 
 export interface ContextBundle {
@@ -58,6 +63,10 @@ export interface ContextBundle {
    * (e.g. server-side simulations without a browser session). */
   realLocationTrusted: boolean | null;
   realLocationCity: string | null;
+
+  // Phase 2 AI — Transaction Intelligence (null when sidecar unavailable)
+  aiClassification: TransactionAiClassification | null;
+  categoryFrequency: Record<string, number> | null;
 }
 
 export interface ContextBundleInput {
@@ -90,6 +99,8 @@ export async function buildContextBundle(input: ContextBundleInput): Promise<Con
   const dormantCutoff = new Date(now - DORMANT_BENEFICIARY_WINDOW_MS);
   const signalWindowStart = new Date(now - CONTEXT_SIGNAL_WINDOW_MS);
 
+  const narration = [input.merchant, input.beneficiary].filter(Boolean).join(" | ");
+
   const [
     profile,
     merchantHistoryCount,
@@ -103,6 +114,7 @@ export async function buildContextBundle(input: ContextBundleInput): Promise<Con
     pendingSignals,
     latestSession,
     finFactors,
+    aiClassification,
   ] = await Promise.all([
     prisma.behavioralProfile.findUnique({ where: { userId: input.userId } }),
     prisma.transaction.count({
@@ -162,6 +174,7 @@ export async function buildContextBundle(input: ContextBundleInput): Promise<Con
       deviceFingerprintHash: input.fingerprintHash,
       beneficiary: input.beneficiary,
     }),
+    classifyTransactionNarration(narration),
   ]);
 
   const [deviceSimilarUsers, governmentRisk] = await Promise.all([
@@ -250,5 +263,8 @@ export async function buildContextBundle(input: ContextBundleInput): Promise<Con
     governmentRiskSource,
     realLocationTrusted: latestSession ? latestSession.trusted : null,
     realLocationCity: latestSession?.city ?? null,
+
+    aiClassification,
+    categoryFrequency: parseCategoryFrequency(profile?.categoryFrequency),
   };
 }

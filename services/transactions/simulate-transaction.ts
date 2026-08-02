@@ -141,6 +141,7 @@ export async function simulateTransaction(
         finRiskScore: result.finRiskScore,
         governmentRiskScore: result.governmentRiskScore,
         deviceSimilarityScore: result.deviceSimilarityScore,
+        aiRiskScore: result.aiRiskScore,
         recommendation: result.recommendation,
         factors: {
           create: result.factors.map((factor) => ({

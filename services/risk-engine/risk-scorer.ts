@@ -30,6 +30,7 @@ import {
   type RiskThresholds,
   type RiskTier,
 } from "@/services/risk-engine/threshold-policy";
+import { evaluateTransactionAiFactors } from "@/services/transaction-ai/ai-factor-evaluators";
 
 export interface RiskScoreInput {
   amount: number;
@@ -60,6 +61,8 @@ export interface RiskScoreResult {
   finRiskScore: number;
   governmentRiskScore: number;
   deviceSimilarityScore: number;
+  /** Additive Transaction Intelligence contribution (capped). */
+  aiRiskScore: number;
 }
 
 const MAX_SCORE = 100;
@@ -139,6 +142,13 @@ export function scoreTransaction(input: RiskScoreInput): RiskScoreResult {
       context.governmentRiskSource
     ),
     evaluateUntrustedRealLocation(context.realLocationTrusted, context.realLocationCity),
+    // Phase 2 AI — additive only; capped inside evaluateTransactionAiFactors
+    ...evaluateTransactionAiFactors({
+      amount,
+      avgAmount: context.avgAmount,
+      aiClassification: context.aiClassification,
+      categoryFrequency: context.categoryFrequency,
+    }),
   ].filter((factor): factor is RiskFactorResult => factor !== null);
 
   const score = Math.min(
@@ -154,6 +164,7 @@ export function scoreTransaction(input: RiskScoreInput): RiskScoreResult {
   const finRiskScore = sumContributions(factors, (code) => code.startsWith("FIN_"));
   const governmentRiskScore = sumContributions(factors, (code) => code.startsWith("GOVERNMENT_INTELLIGENCE_"));
   const deviceSimilarityScore = sumContributions(factors, (code) => code === "FIN_DEVICE_SIMILARITY");
+  const aiRiskScore = sumContributions(factors, (code) => code.startsWith("AI_"));
 
   return {
     score,
@@ -166,6 +177,7 @@ export function scoreTransaction(input: RiskScoreInput): RiskScoreResult {
     finRiskScore,
     governmentRiskScore,
     deviceSimilarityScore,
+    aiRiskScore,
   };
 }
 

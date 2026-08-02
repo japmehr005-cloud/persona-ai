@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { categorizeMerchant } from "@/services/import/categorizer";
 import { normalizeRow, parseCsvText, type ColumnMapping } from "@/services/import/csv-parser";
 import { recalculateBehavioralProfile } from "@/services/behavior-engine/profile-service";
+import { resolveTransactionCategory } from "@/services/transaction-ai/client";
 
 export interface CsvImportResult {
   jobId: string;
@@ -47,12 +48,32 @@ export async function runCsvImport(params: {
     status: "APPROVED";
   }[] = [];
 
-  rows.forEach((raw, index) => {
+  const aiCategoryCache = new Map<string, string>();
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const raw = rows[index];
     const rowNumber = index + 2; // account for header row + 1-based indexing
     const result = normalizeRow(raw, mapping, rowNumber);
     if (!result.ok) {
       errors.push({ rowNumber: result.rowNumber, error: result.error });
-      return;
+      continue;
+    }
+
+    const keywordCategory = categorizeMerchant(result.row.merchant, result.row.categoryHint);
+    let category = keywordCategory;
+    // Prefer cached AI classification per merchant to avoid N sidecar calls.
+    if (!result.row.categoryHint) {
+      const cached = aiCategoryCache.get(result.row.merchant);
+      if (cached) {
+        category = cached;
+      } else {
+        const resolved = await resolveTransactionCategory({
+          merchant: result.row.merchant,
+          keywordCategory,
+        });
+        category = resolved.category;
+        aiCategoryCache.set(result.row.merchant, category);
+      }
     }
 
     transactionsToCreate.push({
@@ -61,11 +82,11 @@ export async function runCsvImport(params: {
       date: result.row.date,
       amount: result.row.amount,
       merchant: result.row.merchant,
-      category: categorizeMerchant(result.row.merchant, result.row.categoryHint),
+      category,
       channel: result.row.amount < 0 ? "CARD" : "TRANSFER",
       status: "APPROVED",
     });
-  });
+  }
 
   // Persist the imported rows and mark the job complete atomically, so a
   // crash or aborted request between the two writes can never leave an

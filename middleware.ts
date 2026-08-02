@@ -13,6 +13,7 @@ export default auth((req) => {
 
   const isProtectedCustomerRoute =
     pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/assistant") ||
     pathname.startsWith("/transactions") ||
     pathname.startsWith("/security") ||
     pathname.startsWith("/alerts") ||
@@ -47,6 +48,8 @@ export const config = {
   matcher: [
     "/dashboard",
     "/dashboard/:path*",
+    "/assistant",
+    "/assistant/:path*",
     "/transactions/:path*",
     "/security/:path*",
     "/alerts/:path*",

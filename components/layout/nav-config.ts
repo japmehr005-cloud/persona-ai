@@ -28,6 +28,7 @@ export interface NavItem {
 
 export const CUSTOMER_NAV: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Persona AI", href: "/assistant", icon: BrainCircuit },
   { label: "Transactions", href: "/transactions", icon: ArrowLeftRight },
   {
     label: "Security",
