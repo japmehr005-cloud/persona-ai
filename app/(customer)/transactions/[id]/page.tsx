@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { PageBreadcrumbs } from "@/components/shared/page-breadcrumbs";
 import { RiskBreakdown } from "@/components/shared/risk-breakdown";
 import { AuditTrail } from "@/components/shared/audit-trail";
+import { ReportDialog } from "@/features/fin/report-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -127,6 +128,32 @@ export default async function TransactionDetailPage({
                 <Row label="Imported from" value={transaction.importedFromFilename} />
               )}
             </dl>
+
+            <div className="flex flex-col gap-2 border-t border-border pt-4">
+              <ReportDialog
+                type="SUSPICIOUS_TRANSACTION"
+                transactionId={transaction.id}
+                trigger={
+                  <Button variant="outline" className="w-full justify-center text-destructive hover:text-destructive">
+                    <ShieldAlert />
+                    Report suspicious transaction
+                  </Button>
+                }
+              />
+              {transaction.beneficiary && (
+                <ReportDialog
+                  type="SUSPICIOUS_BENEFICIARY"
+                  transactionId={transaction.id}
+                  beneficiary={transaction.beneficiary}
+                  trigger={
+                    <Button variant="outline" className="w-full justify-center text-destructive hover:text-destructive">
+                      <ShieldAlert />
+                      Report suspicious beneficiary
+                    </Button>
+                  }
+                />
+              )}
+            </div>
           </CardContent>
         </Card>
 

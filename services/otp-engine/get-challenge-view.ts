@@ -20,11 +20,11 @@ export async function getOtpChallengeView(
   challengeId: string
 ): Promise<OtpChallengeView | null> {
   const challenge = await prisma.otpChallenge.findFirst({
-    where: { id: challengeId, transaction: { account: { userId } } },
+    where: { id: challengeId, userId, purpose: "TRANSACTION" },
     include: { transaction: true },
   });
 
-  if (!challenge) return null;
+  if (!challenge || !challenge.transaction) return null;
 
   return {
     id: challenge.id,

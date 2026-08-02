@@ -30,6 +30,11 @@ export const VERIFICATION_SESSION_TTL_MS = 10 * 60 * 1000;
  * "active" and eligible to influence the next transaction a user makes. */
 export const CONTEXT_SIGNAL_WINDOW_MS = 10 * 60 * 1000;
 
+/** Minimum simulated payment amount that triggers the "pause on active
+ * call" Context Intelligence UX — small/trivial amounts aren't worth
+ * interrupting even while a call signal is active. */
+export const PAUSE_ON_CALL_MIN_AMOUNT = 5000;
+
 export const TRANSACTION_CATEGORIES = [
   "Groceries",
   "Dining",

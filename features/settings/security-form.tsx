@@ -12,18 +12,22 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TwoFactorSection } from "@/features/settings/two-factor-section";
 import { BiometricSection } from "@/features/settings/biometric-section";
+import { SignInMethodSection } from "@/features/settings/sign-in-method-section";
 import type { WebAuthnCredentialView } from "@/services/auth/webauthn";
+import type { PreferredAuthMethod } from "@prisma/client";
 
 export function SecurityForm({
   emailAlertsEnabled,
   smsAlertsEnabled,
   twoFactorEnabled,
   webAuthnCredentials,
+  preferredAuthMethod,
 }: {
   emailAlertsEnabled: boolean;
   smsAlertsEnabled: boolean;
   twoFactorEnabled: boolean;
   webAuthnCredentials: WebAuthnCredentialView[];
+  preferredAuthMethod: PreferredAuthMethod | null;
 }) {
   const [values, setValues] = useState({ emailAlertsEnabled, smsAlertsEnabled });
   const [isSaving, setIsSaving] = useState(false);
@@ -45,6 +49,23 @@ export function SecurityForm({
 
   return (
     <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Sign-in method</CardTitle>
+          <CardDescription>
+            Choose how Persona AI verifies you every time you sign in. A riskier-than-usual sign-in can
+            still require a stronger method than the one you pick here.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SignInMethodSection
+            currentMethod={preferredAuthMethod}
+            hasBiometricCredential={webAuthnCredentials.length > 0}
+            hasAuthenticatorEnabled={twoFactorEnabled}
+          />
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Two-factor authentication</CardTitle>

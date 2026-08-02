@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { PreferredAuthMethod } from "@prisma/client";
 import { DEFAULT_HIGH_RISK_THRESHOLD, DEFAULT_MEDIUM_RISK_THRESHOLD } from "@/lib/constants";
 import { listWebAuthnCredentials, type WebAuthnCredentialView } from "@/services/auth/webauthn";
 
@@ -26,6 +27,11 @@ export interface UserSettingsView {
   twoFactorEnabled: boolean;
   webAuthnCredentialCount: number;
   webAuthnCredentials: WebAuthnCredentialView[];
+
+  /** Adaptive Authentication — the sign-in method the customer has chosen.
+   * `null` means "no explicit preference" (password-only, or password + the
+   * legacy TOTP flow if already enabled) — see `scoreLogin`/`loginAction`. */
+  preferredAuthMethod: PreferredAuthMethod | null;
 
   adaptiveLearningEnabled: boolean;
   mediumRiskThreshold: number;
@@ -69,6 +75,7 @@ export async function getUserSettingsView(userId: string): Promise<UserSettingsV
     twoFactorEnabled: twoFactor?.enabled ?? false,
     webAuthnCredentialCount: webAuthnCredentials.length,
     webAuthnCredentials,
+    preferredAuthMethod: settings?.preferredAuthMethod ?? null,
 
     adaptiveLearningEnabled: settings?.adaptiveLearningEnabled ?? true,
     mediumRiskThreshold: settings?.mediumRiskThreshold ?? DEFAULT_MEDIUM_RISK_THRESHOLD,

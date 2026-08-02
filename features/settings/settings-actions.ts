@@ -4,11 +4,13 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireUser } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { updateProfile } from "@/services/settings/update-profile";
 import { updateSecurityPreferences } from "@/services/settings/update-security-preferences";
 import { updateRiskEngineSettings } from "@/services/settings/update-risk-engine-settings";
 import { updateDeveloperSettings } from "@/services/settings/update-developer-settings";
+import { updatePreferredAuthMethod } from "@/services/settings/update-auth-method";
 import { logoutAllDevices } from "@/services/settings/logout-all-devices";
 import { resetDemoData, ResetDemoDataError } from "@/services/settings/reset-demo-data";
 import { RISK_THRESHOLD_BOUNDS } from "@/lib/constants";
@@ -184,6 +186,43 @@ export async function disableTotpAction(input: { code: string }): Promise<Action
     };
   }
 
+  revalidatePath("/settings");
+  return { ok: true, data: undefined };
+}
+
+const authMethodSchema = z.object({
+  method: z.enum(["PASSWORD_OTP", "PASSWORD_BIOMETRIC", "AUTHENTICATOR"]).nullable(),
+});
+
+/**
+ * Adaptive Authentication — sets the customer's preferred sign-in method.
+ * The Risk Engine's login-risk score can still force a stronger method for
+ * a suspicious login; it never relaxes below this preference.
+ */
+export async function updatePreferredAuthMethodAction(
+  input: z.infer<typeof authMethodSchema>
+): Promise<ActionResult> {
+  const user = await requireUser();
+  const parsed = authMethodSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid sign-in method." };
+  }
+
+  if (parsed.data.method === "PASSWORD_BIOMETRIC") {
+    const credentialCount = await prisma.webAuthnCredential.count({ where: { userId: user.id } });
+    if (credentialCount === 0) {
+      return { ok: false, error: "Register a biometric device below before selecting this method." };
+    }
+  }
+
+  if (parsed.data.method === "AUTHENTICATOR") {
+    const totp = await prisma.twoFactorCredential.findUnique({ where: { userId: user.id }, select: { enabled: true } });
+    if (!totp?.enabled) {
+      return { ok: false, error: "Set up your authenticator app below before selecting this method." };
+    }
+  }
+
+  await updatePreferredAuthMethod(user.id, parsed.data.method);
   revalidatePath("/settings");
   return { ok: true, data: undefined };
 }

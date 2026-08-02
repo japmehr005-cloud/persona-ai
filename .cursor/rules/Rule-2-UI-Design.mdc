@@ -1,31 +1,77 @@
 ---
+description: 
 alwaysApply: true
 ---
 
-Design a premium fintech interface.
+Design a premium banking and fintech interface inspired by modern products such as Stripe, Mercury, Revolut, Vercel and Microsoft 365.
 
-Style should resemble modern products such as Stripe, Mercury, Linear, Vercel or Revolut.
-
-Use:
-
+Technology
 • Tailwind CSS
 • shadcn/ui
-• Lucide icons
+• Lucide Icons
+• Responsive design using modern CSS Grid/Flexbox
 
-No emojis.
+Design Principles
+• Professional banking aesthetic
+• Minimal and clean layouts
+• Consistent spacing (8px grid system)
+• Rounded corners (12–16px)
+• Soft shadows
+• High visual hierarchy
+• Plenty of whitespace
+• Consistent typography
+• No emojis
+• No unnecessary gradients
+• No glassmorphism unless specifically requested
+• Smooth, subtle animations only (Framer Motion where appropriate)
 
-Minimal.
+Accessibility (Highest Priority)
+The primary audience includes users aged 50–70.
 
-Professional.
+Always prioritize:
+• Large readable typography (minimum 16px body text)
+• High colour contrast
+• Large touch targets (minimum 44px)
+• Simple navigation
+• Clear labels
+• Avoid hidden interactions
+• Keyboard accessibility
+• Screen reader compatibility
+• WCAG AA compliance where possible
 
-Consistent spacing.
+Mobile First
+Every page must function correctly on:
+• Desktop
+• Tablet
+• Mobile
 
-Rounded corners.
+Authentication, transaction approval, call detection, and OTP flows should be designed mobile-first.
 
-Subtle shadows.
+Internationalization
+Design all layouts to support:
+• English
+• Hindi
+• Punjabi
 
-Responsive on desktop and mobile.
+Do not hardcode English-only layouts. Components should accommodate varying text lengths.
 
-Animations should be subtle.
+Banking Experience
+The interface should feel trustworthy rather than flashy.
 
-Accessibility should always be considered.
+Prioritize:
+• Security
+• Clarity
+• Confidence
+• Explainability
+
+Users should immediately understand:
+• Why a transaction was blocked
+• Why additional authentication is required
+• What action they should take next
+
+Consistency
+Reuse existing components whenever possible.
+
+Prefer extending existing UI over creating duplicate components.
+
+Maintain consistent spacing, colours, typography, icons, and interaction patterns across the entire application.

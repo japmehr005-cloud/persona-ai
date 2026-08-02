@@ -53,6 +53,13 @@ model User {
   twoFactorCredential   TwoFactorCredential?
   webAuthnCredentials   WebAuthnCredential[]
   pendingAuthChallenges PendingAuthChallenge[]
+  otpChallenges         OtpChallenge[]
+
+  // Phase 9 — Fraud Intelligence Network
+  trustedLocations     TrustedLocation[]
+  fraudReportsFiled    FraudReport[]     @relation("FraudReportsFiled")
+  fraudReportsResolved FraudReport[]     @relation("FraudReportsResolved")
+  finEvents            FinEvent[]
 
   @@map("users")
 }
@@ -99,16 +106,16 @@ enum ImportJobStatus {
 }
 
 model ImportJob {
-  id          String          @id @default(cuid())
-  userId      String
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  filename    String
-  status      ImportJobStatus @default(PROCESSING)
-  rowCount    Int             @default(0)
-  importedCount Int           @default(0)
-  errorLog    Json?
-  createdAt   DateTime        @default(now())
-  completedAt DateTime?
+  id            String          @id @default(cuid())
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  filename      String
+  status        ImportJobStatus @default(PROCESSING)
+  rowCount      Int             @default(0)
+  importedCount Int             @default(0)
+  errorLog      Json?
+  createdAt     DateTime        @default(now())
+  completedAt   DateTime?
 
   transactions Transaction[]
 
@@ -116,25 +123,27 @@ model ImportJob {
 }
 
 model Transaction {
-  id           String             @id @default(cuid())
-  accountId    String
-  account      Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  importJobId  String?
-  importJob    ImportJob?         @relation(fields: [importJobId], references: [id])
-  date         DateTime
-  amount       Decimal            @db.Decimal(14, 2)
-  merchant     String
-  category     String
-  beneficiary  String?
-  channel      TransactionChannel @default(CARD)
-  status       TransactionStatus  @default(APPROVED)
-  isSimulated  Boolean            @default(false)
-  createdAt    DateTime           @default(now())
+  id          String             @id @default(cuid())
+  accountId   String
+  account     Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  importJobId String?
+  importJob   ImportJob?         @relation(fields: [importJobId], references: [id])
+  date        DateTime
+  amount      Decimal            @db.Decimal(14, 2)
+  merchant    String
+  category    String
+  beneficiary String?
+  channel     TransactionChannel @default(CARD)
+  status      TransactionStatus  @default(APPROVED)
+  isSimulated Boolean            @default(false)
+  createdAt   DateTime           @default(now())
 
   riskAssessment RiskAssessment?
   otpChallenges  OtpChallenge[]
   contextSignals ContextSignal[]
   alerts         Alert[]
+  fraudReports   FraudReport[]
+  finEvents      FinEvent[]
 
   @@index([accountId, date])
   @@map("transactions")
@@ -175,28 +184,88 @@ model Device {
   firstSeenAt     DateTime @default(now())
   lastSeenAt      DateTime @default(now())
 
-  sessions Session[]
+  // Phase 9 — richer, multi-signal device intelligence (FIN). `components`
+  // is the raw multi-signal snapshot captured client-side; `similarityKey`
+  // is a coarse, deliberately IP/browser-version-agnostic hash (platform +
+  // timezone + language + screen) so a VPN switch or a minor browser update
+  // doesn't mint an entirely new device identity — see
+  // services/fin/device-intelligence.ts.
+  platform            String?
+  screenResolution    String?
+  timezone            String?
+  language            String?
+  hardwareConcurrency Int?
+  colorDepth          Int?
+  components          Json?
+  similarityKey       String?
+
+  sessions     Session[]
+  fraudReports FraudReport[]
+  finEvents    FinEvent[]
 
   @@unique([userId, fingerprintHash])
+  @@index([similarityKey])
   @@map("devices")
 }
 
 model Session {
-  id           String    @id @default(cuid())
+  id           String   @id @default(cuid())
   userId       String
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   deviceId     String?
-  device       Device?   @relation(fields: [deviceId], references: [id])
+  device       Device?  @relation(fields: [deviceId], references: [id])
   ipAddress    String?
   userAgent    String?
   city         String?
+  region       String?
   country      String?
   latitude     Float?
   longitude    Float?
-  startedAt    DateTime  @default(now())
-  lastActiveAt DateTime  @default(now())
+  // Horizontal accuracy in metres from `navigator.geolocation` when the
+  // browser supplied coordinates; null for IP-resolved locations.
+  accuracy     Float?
+  // Where the lat/long came from — BROWSER is preferred; IP is the
+  // graceful fallback when permission is denied or geolocation is unavailable.
+  locationSource SessionLocationSource?
+  // Phase 9 — populated by services/geolocation once a real-or-mock IP
+  // lookup runs; `trusted` mirrors a `TrustedLocation` match, `isSuspicious`
+  // is set by Context Intelligence (e.g. impossible travel, new region).
+  trusted      Boolean  @default(false)
+  isSuspicious Boolean  @default(false)
+  startedAt    DateTime @default(now())
+  lastActiveAt DateTime @default(now())
+
+  // FIN Enterprise Upgrade — the login-risk snapshot and the authentication
+  // method that actually won at sign-in, persisted here (rather than only
+  // used transiently in `scoreLogin`) so the Security Map/timeline can show
+  // a risk score and auth method per login without recomputing history.
+  // Nullable so every session created before this upgrade remains valid.
+  riskScore  Int?
+  riskTier   RiskTier?
+  authMethod SessionAuthMethod?
+
+  fraudReports FraudReport[]
+  finEvents    FinEvent[]
 
   @@map("sessions")
+}
+
+enum SessionLocationSource {
+  BROWSER
+  IP
+  UNKNOWN
+}
+
+// Distinct from `PreferredAuthMethod` (the customer's *preference*): this
+// records what actually happened at a given sign-in, including the
+// no-step-up baseline (`PASSWORD_ONLY`) and the legacy TOTP 2FA flow, which
+// `PreferredAuthMethod` doesn't cover.
+enum SessionAuthMethod {
+  PASSWORD_ONLY
+  PASSWORD_OTP
+  PASSWORD_BIOMETRIC
+  AUTHENTICATOR
+  TOTP_2FA
 }
 
 // ---------------------------------------------------------------------------
@@ -224,13 +293,13 @@ enum VerificationStatus {
 }
 
 model RiskAssessment {
-  id            String      @id @default(cuid())
-  transactionId String      @unique
-  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  score         Int
-  tier          RiskTier
-  explanation   String
-  otpRequired   Boolean     @default(false)
+  id                    String             @id @default(cuid())
+  transactionId         String             @unique
+  transaction           Transaction        @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  score                 Int
+  tier                  RiskTier
+  explanation           String
+  otpRequired           Boolean            @default(false)
   // Model confidence in this assessment (0-100), derived from behavioral
   // baseline sample size and the number of corroborating factors.
   confidence            Int                @default(70)
@@ -250,6 +319,14 @@ model RiskAssessment {
   baselineMedianAmount Decimal? @db.Decimal(14, 2)
   baselineSampleSize   Int?
   deviceTrusted        Boolean?
+
+  // Phase 9 — snapshots of the FIN/government-intelligence/device-similarity
+  // contribution and the engine's plain-language recommended action, for the
+  // explainability panel. Nullable so historical rows remain valid.
+  finRiskScore          Int?
+  governmentRiskScore   Int?
+  deviceSimilarityScore Int?
+  recommendation        String?
 
   factors RiskFactor[]
 
@@ -289,18 +366,18 @@ enum AlertDisposition {
 }
 
 model Alert {
-  id            String            @id @default(cuid())
+  id            String           @id @default(cuid())
   userId        String
-  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactionId String?
-  transaction   Transaction?      @relation(fields: [transactionId], references: [id])
+  transaction   Transaction?     @relation(fields: [transactionId], references: [id])
   severity      AlertSeverity
   title         String
   body          String
-  status        AlertStatus       @default(OPEN)
-  disposition   AlertDisposition  @default(UNREVIEWED)
+  status        AlertStatus      @default(OPEN)
+  disposition   AlertDisposition @default(UNREVIEWED)
   analystNote   String?
-  createdAt     DateTime          @default(now())
+  createdAt     DateTime         @default(now())
   resolvedAt    DateTime?
 
   @@index([userId, status])
@@ -318,19 +395,42 @@ enum OtpChallengeStatus {
   FAILED
 }
 
-model OtpChallenge {
-  id            String             @id @default(cuid())
-  transactionId String
-  transaction   Transaction        @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  contextHash   String
-  otpHash       String
-  attempts      Int                @default(0)
-  maxAttempts   Int                @default(3)
-  status        OtpChallengeStatus @default(PENDING)
-  expiresAt     DateTime
-  createdAt     DateTime           @default(now())
-  verifiedAt    DateTime?
+// Phase 9 — lets the same CB-OTP engine issue login-time OTPs (Adaptive
+// Authentication Option 1) in addition to transaction step-up OTPs, instead
+// of duplicating the challenge/verify logic in a second model.
+enum OtpPurpose {
+  TRANSACTION
+  LOGIN
+}
 
+model OtpChallenge {
+  id     String @id @default(cuid())
+  // Direct owner FK — required so LOGIN-purpose challenges (which have no
+  // transaction) can still be scoped to a user. TRANSACTION-purpose
+  // challenges keep transactionId as their scoping key as before.
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  transactionId String?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  purpose       OtpPurpose   @default(TRANSACTION)
+
+  contextHash           String
+  otpHash               String
+  // Binds the challenge to the device that requested it — checked (not just
+  // stored) at verify time so a stolen/leaked code can't be redeemed from a
+  // different device. Nullable for delivery channels where no fingerprint
+  // was available.
+  deviceFingerprintHash String?
+
+  attempts    Int                @default(0)
+  maxAttempts Int                @default(3)
+  status      OtpChallengeStatus @default(PENDING)
+  expiresAt   DateTime
+  createdAt   DateTime           @default(now())
+  verifiedAt  DateTime?
+
+  @@index([userId, purpose])
   @@map("otp_challenges")
 }
 
@@ -403,10 +503,27 @@ model UserSettings {
   // Developer settings (only surfaced in the UI for demo accounts)
   showRiskDebugPanel Boolean @default(false)
 
+  // Phase 9 — Adaptive Authentication method preference. Nullable and
+  // default-less on purpose: a `UserSettings` row is created the moment a
+  // customer changes *any* setting (see update-security-preferences.ts
+  // etc.), so a non-null default here would silently opt every existing
+  // user into an extra login step the first time they touched an unrelated
+  // toggle. `null` means "no explicit preference" — password-only login
+  // (or the legacy TOTP flow, if already enabled) — see `scoreLogin`.
+  // The Risk Engine's login-risk score can still force a stronger method
+  // than this preference for a suspicious login; it can never relax below it.
+  preferredAuthMethod PreferredAuthMethod?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("user_settings")
+}
+
+enum PreferredAuthMethod {
+  PASSWORD_OTP
+  PASSWORD_BIOMETRIC
+  AUTHENTICATOR
 }
 
 model TwoFactorCredential {
@@ -456,4 +573,225 @@ model PendingAuthChallenge {
   createdAt DateTime                 @default(now())
 
   @@map("pending_auth_challenges")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 9 — Fraud Intelligence Network (FIN) & Government Intelligence
+// (FRI/MNRL). Everything below is additive: new tables only, no existing
+// model is narrowed or dropped. FIN is a service layer (services/fin/), not
+// a page — these tables are its data store, consumed by the Risk Engine,
+// the customer Security section, and the Admin Security Operations Center.
+// ---------------------------------------------------------------------------
+
+enum TrustedLocationSource {
+  SELF_REPORTED
+  AUTO_LEARNED
+}
+
+// A location a customer has used enough (or explicitly confirmed) that it
+// should no longer be treated as anomalous by Context Intelligence. Kept
+// separate from `Session` (which records every individual sign-in) since a
+// trusted location aggregates many sessions into one reusable signal.
+model TrustedLocation {
+  id          String                @id @default(cuid())
+  userId      String
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city        String?
+  region      String?
+  country     String?
+  latitude    Float?
+  longitude   Float?
+  source      TrustedLocationSource @default(AUTO_LEARNED)
+  trusted     Boolean               @default(false)
+  useCount    Int                   @default(1)
+  firstSeenAt DateTime              @default(now())
+  lastSeenAt  DateTime              @default(now())
+
+  @@index([userId])
+  @@map("trusted_locations")
+}
+
+enum FraudReportType {
+  SUSPICIOUS_LOGIN
+  SUSPICIOUS_TRANSACTION
+  SUSPICIOUS_BENEFICIARY
+  NOT_ME
+}
+
+enum FraudReportStatus {
+  OPEN
+  CONFIRMED
+  DISMISSED
+}
+
+// Customer-filed reports ("Report suspicious login/transaction/beneficiary",
+// "This wasn't me"). Every report is the seed of a `FinEvent` and can grow
+// into a `FraudCluster` once it corroborates with another user's report —
+// this is what makes FIN "continuously updating" rather than a one-off form.
+model FraudReport {
+  id             String            @id @default(cuid())
+  reporterUserId String
+  reporter       User              @relation("FraudReportsFiled", fields: [reporterUserId], references: [id], onDelete: Cascade)
+  type           FraudReportType
+  status         FraudReportStatus @default(OPEN)
+  description    String?
+  // FIN Enterprise Upgrade — defaulted from the report type at creation
+  // (see fraud-report-service.ts's REPORT_SEVERITY map) and editable by an
+  // analyst from the Fraud Investigation workflow. Nullable so historical
+  // reports created before this upgrade remain valid.
+  severity       AlertSeverity?
+
+  transactionId String?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  sessionId     String?
+  session       Session?     @relation(fields: [sessionId], references: [id])
+  deviceId      String?
+  device        Device?      @relation(fields: [deviceId], references: [id])
+  beneficiary   String?
+
+  resolvedByUserId String?
+  resolvedBy       User?     @relation("FraudReportsResolved", fields: [resolvedByUserId], references: [id])
+  resolutionNote   String?
+  createdAt        DateTime  @default(now())
+  resolvedAt       DateTime?
+
+  @@index([reporterUserId])
+  @@index([status])
+  @@map("fraud_reports")
+}
+
+// The FIN correlation log — deliberately separate from `AuditLog` (which has
+// no severity/category taxonomy and only indexes by entityId) so admin SOC
+// queries like "every high-severity event touching this device in the last
+// 24h" don't require scanning free-form audit text.
+enum FinEventType {
+  FRAUD_REPORT_FILED
+  FRAUD_REPORT_RESOLVED
+  DEVICE_FLAGGED
+  DEVICE_TRUSTED
+  DEVICE_SIMILARITY_MATCH
+  LOGIN_NEW_DEVICE
+  LOGIN_NEW_LOCATION
+  LOGIN_HIGH_RISK
+  LOGIN_STEP_UP_REQUIRED
+  LOGIN_STEP_UP_COMPLETED
+  MNRL_MATCH
+  FRI_HIT
+  CLUSTER_CREATED
+  CLUSTER_LINKED
+  OTP_CONTEXT_MISMATCH
+  TRANSACTION_PAUSED_CALL_ACTIVE
+  IMPOSSIBLE_TRAVEL_DETECTED
+}
+
+model FinEvent {
+  id       String        @id @default(cuid())
+  type     FinEventType
+  severity AlertSeverity
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  deviceId String?
+  device   Device? @relation(fields: [deviceId], references: [id])
+
+  sessionId String?
+  session   Session? @relation(fields: [sessionId], references: [id])
+
+  transactionId String?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+
+  beneficiary String?
+  ipAddress   String?
+
+  summary   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([severity])
+  @@index([userId])
+  @@index([deviceId])
+  @@index([createdAt])
+  @@map("fin_events")
+}
+
+enum ClusterEntityType {
+  USER
+  DEVICE
+  BENEFICIARY
+  IP
+}
+
+enum ClusterRiskLevel {
+  WATCH
+  ELEVATED
+  CRITICAL
+}
+
+// A group of entities (users/devices/beneficiaries/IPs) linked by shared
+// fraud-relevant attributes across ≥2 corroborating fraud reports. Powers
+// the Admin SOC relationship graph's "fraud clusters" view.
+model FraudCluster {
+  id        String           @id @default(cuid())
+  label     String
+  riskLevel ClusterRiskLevel @default(WATCH)
+  summary   String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  members FraudClusterMember[]
+
+  @@map("fraud_clusters")
+}
+
+model FraudClusterMember {
+  id          String            @id @default(cuid())
+  clusterId   String
+  cluster     FraudCluster      @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+  entityType  ClusterEntityType
+  entityValue String
+  addedAt     DateTime          @default(now())
+
+  @@unique([clusterId, entityType, entityValue])
+  @@index([entityType, entityValue])
+  @@map("fraud_cluster_members")
+}
+
+enum GovSource {
+  FRI
+  MNRL
+}
+
+enum GovSubjectType {
+  PHONE
+  ACCOUNT
+  BENEFICIARY
+}
+
+enum GovRiskLevel {
+  CLEAR
+  LOW
+  ELEVATED
+  HIGH
+}
+
+// Cached FRI (Financial Fraud Risk Indicator) / MNRL (Mobile Number
+// Revocation List) lookups. Deliberately modeled as a cache in front of a
+// `GovernmentIntelligenceProvider` interface (services/government-intelligence)
+// so a real government API can replace the mock provider later without any
+// caller changing — see services/government-intelligence/provider.ts.
+model GovernmentRiskRecord {
+  id           String         @id @default(cuid())
+  source       GovSource
+  subjectType  GovSubjectType
+  subjectValue String
+  matched      Boolean        @default(false)
+  riskLevel    GovRiskLevel   @default(CLEAR)
+  details      Json?
+  checkedAt    DateTime       @default(now())
+  expiresAt    DateTime
+
+  @@unique([source, subjectType, subjectValue])
+  @@map("government_risk_records")
 }

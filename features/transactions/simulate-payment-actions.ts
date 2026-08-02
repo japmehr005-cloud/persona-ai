@@ -5,7 +5,9 @@ import { z } from "zod";
 
 import { requireUser } from "@/lib/session";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { TRANSACTION_CATEGORIES } from "@/lib/constants";
+import { PAUSE_ON_CALL_MIN_AMOUNT, TRANSACTION_CATEGORIES } from "@/lib/constants";
+import { callDetectionProvider, isWhatsAppCall } from "@/services/context-signals/call-detection";
+import { recordFinEvent } from "@/services/fin/fin-event-logger";
 import {
   simulateTransaction,
   type SimulateTransactionResult,
@@ -22,13 +24,30 @@ const simulatePaymentSchema = z.object({
   beneficiary: z.string().max(120).optional(),
   channel: z.enum(["CARD", "TRANSFER", "ACH", "ATM", "ONLINE"]),
   fingerprintHash: z.string().optional(),
+  /** Set once the customer has seen and dismissed the active-call warning
+   * and explicitly chosen to continue — see `PausedForCallResult` below. */
+  acknowledgeCallWarning: z.boolean().optional(),
 });
 
 export type SimulatePaymentInput = z.infer<typeof simulatePaymentSchema>;
 
+export interface PausedForCallResult {
+  ok: true;
+  paused: true;
+  reason: "active-call";
+  isWhatsAppCall: boolean;
+  merchant: string;
+  amount: number;
+}
+
+export type SimulatePaymentActionResult =
+  | { ok: true; result: SimulateTransactionResult }
+  | PausedForCallResult
+  | { ok: false; error: string };
+
 export async function simulatePaymentAction(
   input: SimulatePaymentInput
-): Promise<{ ok: true; result: SimulateTransactionResult } | { ok: false; error: string }> {
+): Promise<SimulatePaymentActionResult> {
   const user = await requireUser();
 
   const rateLimit = checkRateLimit(
@@ -43,6 +62,34 @@ export async function simulatePaymentAction(
   const parsed = simulatePaymentSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid payment details." };
+  }
+
+  // Context Intelligence: pause risk-eligible transactions attempted while
+  // an active call signal is present, before the transaction is even
+  // created — a real fraud call keeps the victim on the line while they
+  // "confirm a transfer", so this UX interrupts exactly that moment rather
+  // than silently scoring the transaction higher after the fact.
+  if (!parsed.data.acknowledgeCallWarning && parsed.data.amount >= PAUSE_ON_CALL_MIN_AMOUNT) {
+    const callSignal = await callDetectionProvider.getActiveCallSignal(user.id);
+    if (callSignal.active) {
+      await recordFinEvent({
+        type: "TRANSACTION_PAUSED_CALL_ACTIVE",
+        severity: "HIGH",
+        userId: user.id,
+        beneficiary: parsed.data.beneficiary || null,
+        summary: `Transaction to ${parsed.data.merchant} paused — active call detected`,
+        metadata: { amount: parsed.data.amount, callSubtype: callSignal.subtype },
+      });
+
+      return {
+        ok: true,
+        paused: true,
+        reason: "active-call",
+        isWhatsAppCall: isWhatsAppCall(callSignal),
+        merchant: parsed.data.merchant,
+        amount: parsed.data.amount,
+      };
+    }
   }
 
   try {

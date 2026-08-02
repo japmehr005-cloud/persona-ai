@@ -449,3 +449,56 @@ export function evaluateBehaviorDeviation(ctx: BehaviorDeviationContext): RiskFa
     contribution: BEHAVIOR_DEVIATION_WEIGHT,
   };
 }
+
+// ---------------------------------------------------------------------------
+// I. Fraud Intelligence Network — device similarity & real-geolocation trust
+// ---------------------------------------------------------------------------
+
+const DEVICE_SIMILARITY_WEIGHT_PER_MATCH = 8;
+const DEVICE_SIMILARITY_MAX_WEIGHT = 20;
+
+/**
+ * Independent of `FIN_DEVICE_CLUSTER_MATCH` (which requires an actual fraud
+ * report naming this exact device): a device whose coarse fingerprint
+ * (`similarityKey`) closely matches devices belonging to several *other*
+ * customers — with no fraud report yet — is still a meaningful "shared or
+ * device-farm" signal worth a smaller, standalone contribution.
+ */
+export function evaluateDeviceSimilarity(similarUserCount: number): RiskFactorResult | null {
+  if (similarUserCount <= 0) return null;
+
+  const contribution = Math.min(DEVICE_SIMILARITY_MAX_WEIGHT, similarUserCount * DEVICE_SIMILARITY_WEIGHT_PER_MATCH);
+  return {
+    code: "FIN_DEVICE_SIMILARITY",
+    label: "Device fingerprint shared across accounts",
+    detail: `This device closely resembles devices used on ${similarUserCount} other customer account${similarUserCount > 1 ? "s" : ""}.`,
+    weight: DEVICE_SIMILARITY_MAX_WEIGHT,
+    contribution,
+  };
+}
+
+const UNTRUSTED_REAL_LOCATION_WEIGHT = 12;
+
+/**
+ * Real-geolocation-informed counterpart to `evaluateLocationAnomaly` (which
+ * only fires for the *simulated* LOCATION context signal). Coexists with it
+ * rather than replacing it — this one is driven by the IP-geolocation
+ * provider and the customer's actual `TrustedLocation` history, and stays
+ * silent whenever no IP/location could be resolved.
+ */
+export function evaluateUntrustedRealLocation(
+  trusted: boolean | null,
+  city: string | null
+): RiskFactorResult | null {
+  if (trusted === null || trusted) return null;
+
+  return {
+    code: "REAL_LOCATION_UNTRUSTED",
+    label: "Untrusted sign-in location",
+    detail: city
+      ? `This transaction originated from ${city}, a location we haven't confirmed as trusted.`
+      : "This transaction originated from a location we haven't confirmed as trusted.",
+    weight: UNTRUSTED_REAL_LOCATION_WEIGHT,
+    contribution: UNTRUSTED_REAL_LOCATION_WEIGHT,
+  };
+}

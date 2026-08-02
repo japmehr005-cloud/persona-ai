@@ -5,6 +5,7 @@ export interface OtpDeliveryContext {
   code: string;
   merchant: string;
   amount: number;
+  purpose?: "TRANSACTION" | "LOGIN";
 }
 
 export interface OtpDeliveryResult {
@@ -32,6 +33,7 @@ export async function deliverOtp(context: OtpDeliveryContext): Promise<OtpDelive
   }
 
   const from = process.env.OTP_EMAIL_FROM || "Persona AI <security@personaai.ai>";
+  const isLogin = context.purpose === "LOGIN";
 
   const response = await fetch(RESEND_ENDPOINT, {
     method: "POST",
@@ -42,8 +44,10 @@ export async function deliverOtp(context: OtpDeliveryContext): Promise<OtpDelive
     body: JSON.stringify({
       from,
       to: context.toEmail,
-      subject: "Your Persona AI verification code",
-      text: `Your verification code is ${context.code}. It expires in 5 minutes and is bound to your ${context.merchant} transaction. If you didn't request this, contact support immediately.`,
+      subject: isLogin ? "Your Persona AI sign-in code" : "Your Persona AI verification code",
+      text: isLogin
+        ? `Your sign-in code is ${context.code}. It expires in 60 seconds and is bound to this device and session. If you didn't request this, contact support immediately.`
+        : `Your verification code is ${context.code}. It expires in 60 seconds and is bound to your ${context.merchant} transaction and this device. If you didn't request this, contact support immediately.`,
     }),
   });
 

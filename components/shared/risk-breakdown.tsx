@@ -26,6 +26,10 @@ export interface RiskAssessmentView {
   explanation: string;
   otpRequired: boolean;
   factors: RiskFactorView[];
+  /** Plain-language recommended action from the Risk Engine. Falls back to
+   * a tier-based default for historical rows scored before this field
+   * existed. */
+  recommendation?: string | null;
   /** Actual amount of the transaction being explained — enables the
    * "Actual vs. expected" comparison from the explainability requirements. */
   actualAmount?: number;
@@ -34,7 +38,10 @@ export interface RiskAssessmentView {
   baseline?: RiskBaselineView;
 }
 
-const RECOMMENDED_ACTION: Record<RiskTier, string> = {
+/** Fallback only — used when `assessment.recommendation` is null, which
+ * happens solely for historical rows scored before the Risk Engine started
+ * returning a dynamic, factor-aware recommendation (see `risk-scorer.ts`). */
+const FALLBACK_RECOMMENDED_ACTION: Record<RiskTier, string> = {
   LOW: "Approved automatically. No additional action required.",
   MEDIUM: "Approved, and flagged for analyst review — no customer action required.",
   HIGH: "Blocked pending identity verification. A one-time code is issued only after identity is confirmed.",
@@ -132,7 +139,9 @@ export function RiskBreakdown({ assessment }: { assessment: RiskAssessmentView |
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Recommended action
         </p>
-        <p className="mt-1 text-sm text-foreground">{RECOMMENDED_ACTION[assessment.tier]}</p>
+        <p className="mt-1 text-sm text-foreground">
+          {assessment.recommendation ?? FALLBACK_RECOMMENDED_ACTION[assessment.tier]}
+        </p>
       </div>
     </div>
   );

@@ -24,6 +24,7 @@ export interface VerificationSessionView {
   tier: RiskTier;
   confidence: number;
   explanation: string;
+  recommendation: string | null;
   factors: { code: string; label: string; detail: string; contribution: number }[];
   baseline: VerificationBaselineView;
   deviceTrusted: boolean | null;
@@ -109,6 +110,7 @@ export async function getVerificationSession(
     tier: assessment.tier,
     confidence: assessment.confidence,
     explanation: assessment.explanation,
+    recommendation: assessment.recommendation,
     factors: assessment.factors.map((factor) => ({
       code: factor.code,
       label: factor.label,
@@ -180,7 +182,8 @@ export async function cancelVerificationSession(
 export async function verifyIdentityWithPassword(
   userId: string,
   transactionId: string,
-  password: string
+  password: string,
+  deviceFingerprintHash?: string | null
 ): Promise<
   | { ok: true; otpChallengeId: string; otpDemoCode?: string }
   | { ok: false; reason: VerificationActionFailure }
@@ -209,7 +212,7 @@ export async function verifyIdentityWithPassword(
     return { ok: false, reason: "invalid-password" };
   }
 
-  return completeVerification(userId, transactionId, transaction, "PASSWORD");
+  return completeVerification(userId, transactionId, transaction, "PASSWORD", deviceFingerprintHash);
 }
 
 /**
@@ -219,7 +222,8 @@ export async function verifyIdentityWithPassword(
  */
 export async function markIdentityVerifiedByWebAuthn(
   userId: string,
-  transactionId: string
+  transactionId: string,
+  deviceFingerprintHash?: string | null
 ): Promise<
   | { ok: true; otpChallengeId: string; otpDemoCode?: string }
   | { ok: false; reason: VerificationActionFailure }
@@ -236,14 +240,15 @@ export async function markIdentityVerifiedByWebAuthn(
     return { ok: false, reason: "expired" };
   }
 
-  return completeVerification(userId, transactionId, transaction, "WEBAUTHN");
+  return completeVerification(userId, transactionId, transaction, "WEBAUTHN", deviceFingerprintHash);
 }
 
 async function completeVerification(
   userId: string,
   transactionId: string,
   transaction: NonNullable<Awaited<ReturnType<typeof loadSession>>>,
-  method: "PASSWORD" | "WEBAUTHN"
+  method: "PASSWORD" | "WEBAUTHN",
+  deviceFingerprintHash?: string | null
 ): Promise<{ ok: true; otpChallengeId: string; otpDemoCode?: string }> {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
@@ -262,10 +267,12 @@ async function completeVerification(
   const challenge = await createOtpChallenge({
     userId,
     userEmail: user.email,
+    purpose: "TRANSACTION",
     transactionId,
     amount: Number(transaction.amount),
     merchant: transaction.merchant,
     beneficiary: transaction.beneficiary,
+    deviceFingerprintHash: deviceFingerprintHash ?? null,
   });
 
   return { ok: true, otpChallengeId: challenge.challengeId, otpDemoCode: challenge.demoCode };

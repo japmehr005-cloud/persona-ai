@@ -1,0 +1,24 @@
+---
+alwaysApply: true
+---
+
+# Persona AI Architecture
+
+Persona AI is NOT a banking dashboard.
+
+Persona AI is an Adaptive Banking Security Platform.
+
+Every new feature must integrate into one or more of the following core intelligence layers:
+
+1. Behavioral AI
+2. Context Intelligence
+3. Fraud Intelligence Network (FIN)
+4. Government Intelligence (FRI/MNRL)
+5. Explainable AI
+6. Adaptive Authentication
+
+Do not implement isolated demo features.
+
+Every new feature should strengthen the overall platform architecture rather than exist independently.
+
+When designing new functionality, prioritize platform cohesion over feature quantity.

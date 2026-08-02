@@ -1,0 +1,20 @@
+---
+alwaysApply: true
+---
+
+# Mobile First Security
+
+Persona AI should provide the same security experience on desktop and mobile.
+
+Security features should be designed mobile-first.
+
+Support:
+
+• Phone call detection
+• WhatsApp call detection
+• Biometric authentication
+• Mobile Authenticator
+• Context-Bound OTP
+• Push notifications
+
+Whenever possible, demonstrate security features using realistic mobile workflows instead of desktop-only simulations.

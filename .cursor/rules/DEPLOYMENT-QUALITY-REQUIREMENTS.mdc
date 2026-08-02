@@ -1,0 +1,36 @@
+---
+alwaysApply: true
+---
+
+Every implementation should be written as if the application will be deployed for a live hackathon demonstration. 
+ENSURE IT WORKS AND IS HOSTABLE ON RAILWAY AND VERCEL
+
+Avoid shortcuts that only work in development.
+
+Prefer production-quality implementations over mocked UI.
+
+Use realistic data models.
+
+Use modular services.
+
+Keep APIs reusable.
+
+Ensure the application remains deployable throughout development.
+
+Whenever third-party APIs are unavailable, build clean abstraction layers so real services can be connected later without rewriting business logic.
+
+The final demo should appear to judges as a working enterprise banking security platform rather than a prototype.
+
+When implementing major features, prioritize:
+
+• Stability
+• Scalability
+• Realistic workflows
+• Professional UI
+• Explainability
+• Live interaction
+• Robust architecture
+
+Do not implement features solely for visual demonstration.
+
+Every visible feature should be backed by meaningful application logic.

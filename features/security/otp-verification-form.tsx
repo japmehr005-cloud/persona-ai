@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
 
 import { verifyOtpAction, type VerifyOtpActionResult } from "@/features/security/otp-actions";
+import { getDeviceFingerprint } from "@/lib/device-fingerprint";
 import { OtpTimer } from "@/features/security/otp-timer";
 import {
   OtpLifecycleStepper,
@@ -94,7 +95,8 @@ export function OtpVerificationForm({
 
     setIsSubmitting(true);
     setError(null);
-    const result = await verifyOtpAction(challengeId, code);
+    const fingerprint = await getDeviceFingerprint().catch(() => null);
+    const result = await verifyOtpAction(challengeId, code, fingerprint?.fingerprintHash);
     setIsSubmitting(false);
 
     if (result.ok) {

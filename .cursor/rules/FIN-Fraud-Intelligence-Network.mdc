@@ -1,0 +1,43 @@
+---
+alwaysApply: true
+---
+
+# Fraud Intelligence Network (FIN)
+
+FIN is the central intelligence layer of Persona AI.
+
+FIN is NOT a visualization.
+
+FIN continuously correlates:
+
+• Fraud reports
+• Device fingerprints
+• Browser fingerprints
+• Sessions
+• Trusted devices
+• Trusted locations
+• Beneficiaries
+• Behavioral similarity
+• Government intelligence (FRI/MNRL)
+
+Customer Features
+
+• Login timeline
+• Trusted devices
+• Trusted locations
+• Report fraud
+• Report suspicious transaction
+• Report suspicious user
+
+Admin Features
+
+• Interactive relationship graph
+• Fraud clusters
+• Investigation timeline
+• Threat heatmap
+• Case management
+• Device intelligence
+
+FIN should actively contribute to future AI risk assessments.
+
+Every verified fraud report should strengthen future protection.

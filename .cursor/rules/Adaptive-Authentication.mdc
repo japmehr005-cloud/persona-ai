@@ -1,0 +1,20 @@
+---
+alwaysApply: true
+---
+
+# Adaptive Authentication
+
+Authentication should adapt according to calculated risk.
+
+Supported authentication methods:
+
+• Password + OTP
+• Password + Biometrics
+• Mobile Authenticator
+• Context-Bound OTP
+
+Authentication should only increase when required by the Risk Engine.
+
+Avoid unnecessary friction for trusted users.
+
+High-risk actions should require stronger verification instead of immediately executing transactions.

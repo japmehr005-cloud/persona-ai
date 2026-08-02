@@ -13,6 +13,7 @@ export interface FlaggedQueueRow {
   score: number;
   tier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   explanation: string;
+  recommendation: string | null;
   factors: { code: string; label: string; detail: string; contribution: number }[];
   contextSignals: { type: "CALL" | "SMS" | "LOCATION" | "DEVICE"; label: string; receivedAt: Date }[];
   otpChallenge: { status: "PENDING" | "VERIFIED" | "EXPIRED" | "FAILED"; attempts: number; maxAttempts: number } | null;
@@ -51,6 +52,7 @@ export async function getFlaggedQueue(): Promise<FlaggedQueueRow[]> {
     score: tx.riskAssessment!.score,
     tier: tx.riskAssessment!.tier,
     explanation: tx.riskAssessment!.explanation,
+    recommendation: tx.riskAssessment!.recommendation,
     factors: tx.riskAssessment!.factors.map((factor) => ({
       code: factor.code,
       label: factor.label,

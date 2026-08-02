@@ -37,6 +37,11 @@ export default async function LoginPage({
           That sign-in session expired. Please sign in again.
         </p>
       )}
+      {error === "otp-expired" && (
+        <p className="text-center text-xs text-muted-foreground">
+          That one-time code expired or was already used. Please sign in again.
+        </p>
+      )}
     </div>
   );
 }

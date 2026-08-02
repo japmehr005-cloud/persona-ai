@@ -82,7 +82,8 @@ const webauthnAssertionSchema = z.object({
 
 export async function finishWebAuthnVerificationAction(
   transactionId: string,
-  assertion: AuthenticationResponseJSON
+  assertion: AuthenticationResponseJSON,
+  deviceFingerprintHash?: string
 ): Promise<VerificationStepResult> {
   const user = await requireUser();
   if (!rateLimited(user.id, "verify-webauthn-finish").allowed) {
@@ -95,7 +96,7 @@ export async function finishWebAuthnVerificationAction(
   const verification = await finishAuthentication(user.id, assertion);
   if (!verification.ok) return { ok: false, reason: "webauthn-failed" };
 
-  const result = await markIdentityVerifiedByWebAuthn(user.id, transactionId);
+  const result = await markIdentityVerifiedByWebAuthn(user.id, transactionId, deviceFingerprintHash);
 
   revalidatePath("/dashboard");
   revalidatePath("/transactions");
@@ -108,21 +109,28 @@ export async function finishWebAuthnVerificationAction(
 const passwordStepUpSchema = z.object({
   transactionId: z.string().min(1),
   password: z.string().min(1).max(200),
+  deviceFingerprintHash: z.string().optional(),
 });
 
 export async function verifyPasswordStepUpAction(
   transactionId: string,
-  password: string
+  password: string,
+  deviceFingerprintHash?: string
 ): Promise<VerificationStepResult> {
   const user = await requireUser();
   if (!rateLimited(user.id, "verify-password-step-up").allowed) {
     return { ok: false, reason: "rate-limited" };
   }
 
-  const parsed = passwordStepUpSchema.safeParse({ transactionId, password });
+  const parsed = passwordStepUpSchema.safeParse({ transactionId, password, deviceFingerprintHash });
   if (!parsed.success) return { ok: false, reason: "invalid-password" };
 
-  const result = await verifyIdentityWithPassword(user.id, transactionId, parsed.data.password);
+  const result = await verifyIdentityWithPassword(
+    user.id,
+    transactionId,
+    parsed.data.password,
+    parsed.data.deviceFingerprintHash
+  );
 
   revalidatePath("/dashboard");
   revalidatePath("/transactions");

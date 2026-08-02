@@ -26,6 +26,17 @@ export interface DeviceFingerprint {
   fingerprintHash: string;
   label: string;
   userAgent: string;
+
+  // Phase 9 — the raw multi-signal snapshot behind `fingerprintHash`,
+  // forwarded to `registerDeviceAction` so device-intelligence can compute
+  // a coarse `similarityKey` (services/fin/device-intelligence.ts) that
+  // survives a VPN switch or a minor browser update, unlike the exact hash.
+  platform: string;
+  language: string;
+  timezone: string;
+  screenResolution: string;
+  hardwareConcurrency: number | null;
+  colorDepth: number | null;
 }
 
 /**
@@ -36,9 +47,11 @@ export interface DeviceFingerprint {
  */
 export async function getDeviceFingerprint(): Promise<DeviceFingerprint> {
   const anchor = getOrCreateDeviceAnchor();
-  const { userAgent, platform, language } = window.navigator;
+  const { userAgent, platform, language, hardwareConcurrency } = window.navigator;
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "unknown";
-  const screenSignature = `${window.screen.width}x${window.screen.height}x${window.screen.colorDepth}`;
+  const screenResolution = `${window.screen.width}x${window.screen.height}`;
+  const colorDepth = window.screen.colorDepth ?? null;
+  const screenSignature = `${screenResolution}x${colorDepth}`;
 
   const raw = [anchor, userAgent, platform, language, timezone, screenSignature].join("|");
   const fingerprintHash = await sha256(raw);
@@ -47,10 +60,27 @@ export async function getDeviceFingerprint(): Promise<DeviceFingerprint> {
     fingerprintHash,
     label: describeDevice(userAgent),
     userAgent,
+    platform,
+    language,
+    timezone,
+    screenResolution,
+    hardwareConcurrency: hardwareConcurrency ?? null,
+    colorDepth,
   };
 }
 
-function describeDevice(userAgent: string): string {
+export interface ParsedUserAgent {
+  browser: string;
+  os: string;
+  isMobile: boolean;
+}
+
+/**
+ * Plain string parsing, no DOM access — safe to import from server code
+ * (e.g. `services/fin/geo-intelligence.ts`) to label a stored `Session`/
+ * `Device` row's raw `userAgent`, not just newly-captured fingerprints.
+ */
+export function parseUserAgent(userAgent: string): ParsedUserAgent {
   const isMobile = /Mobile|Android|iPhone/i.test(userAgent);
   let browser = "Unknown browser";
   if (userAgent.includes("Edg/")) browser = "Edge";
@@ -65,5 +95,10 @@ function describeDevice(userAgent: string): string {
   else if (userAgent.includes("Android")) os = "Android";
   else if (userAgent.includes("iPhone") || userAgent.includes("iPad")) os = "iOS";
 
+  return { browser, os, isMobile };
+}
+
+function describeDevice(userAgent: string): string {
+  const { browser, os, isMobile } = parseUserAgent(userAgent);
   return `${browser} on ${os}${isMobile ? " (mobile)" : ""}`;
 }

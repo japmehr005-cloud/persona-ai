@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 
 export type SimulatedSignalType = "CALL" | "SMS" | "LOCATION" | "DEVICE";
 
-export type CallSignalSubtype = "unknown-caller";
+export type CallSignalSubtype = "unknown-caller" | "whatsapp-call";
 export type SmsSignalSubtype = "scam-keywords";
 export type LocationSignalSubtype = "impossible-travel" | "new-city" | "new-region";
 export type DeviceSignalSubtype =
@@ -41,6 +41,12 @@ export const SIGNAL_OPTIONS: SignalOption[] = [
     subtype: "unknown-caller",
     label: "Trigger unknown-caller call",
     description: "Simulates an active call from a number outside your known contacts during the next transaction.",
+  },
+  {
+    type: "CALL",
+    subtype: "whatsapp-call",
+    label: "Trigger WhatsApp call",
+    description: "Simulates an active WhatsApp call during the next transaction — a common vishing/social-engineering channel outside carrier visibility.",
   },
   {
     type: "SMS",

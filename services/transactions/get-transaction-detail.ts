@@ -19,6 +19,9 @@ export interface TransactionDetail {
     tier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
     confidence: number;
     explanation: string;
+    /** Plain-language recommended action. Null for pre-Phase-9 historical
+     * rows scored before this field existed. */
+    recommendation: string | null;
     otpRequired: boolean;
     factors: { code: string; label: string; detail: string; contribution: number }[];
     actualAmount: number;
@@ -76,6 +79,7 @@ export async function getTransactionDetail(
           tier: transaction.riskAssessment.tier,
           confidence: transaction.riskAssessment.confidence,
           explanation: transaction.riskAssessment.explanation,
+          recommendation: transaction.riskAssessment.recommendation,
           otpRequired: transaction.riskAssessment.otpRequired,
           factors: transaction.riskAssessment.factors.map((factor) => ({
             code: factor.code,

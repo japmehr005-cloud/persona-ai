@@ -35,7 +35,7 @@ export function OtpTimer({
     if (remainingMs <= 0) onExpire?.();
   }, [remainingMs, onExpire]);
 
-  const isExpiring = remainingMs > 0 && remainingMs <= 60_000;
+  const isExpiring = remainingMs > 0 && remainingMs <= 15_000;
 
   return (
     <span

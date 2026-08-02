@@ -57,6 +57,7 @@ export default async function SettingsPage() {
             smsAlertsEnabled={settings.smsAlertsEnabled}
             twoFactorEnabled={settings.twoFactorEnabled}
             webAuthnCredentials={settings.webAuthnCredentials}
+            preferredAuthMethod={settings.preferredAuthMethod}
           />
         </TabsContent>
 

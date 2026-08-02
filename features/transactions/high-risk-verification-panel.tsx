@@ -13,6 +13,7 @@ import {
   verifyPasswordStepUpAction,
   type VerificationStepResult,
 } from "@/features/transactions/verification-actions";
+import { getDeviceFingerprint } from "@/lib/device-fingerprint";
 import type { VerificationSessionView } from "@/services/transactions/verification-session";
 import { ContextBoundSummary } from "@/components/shared/context-bound-summary";
 import { RiskBreakdown } from "@/components/shared/risk-breakdown";
@@ -175,7 +176,12 @@ export function HighRiskVerificationPanel({ session }: { session: VerificationSe
         return;
       }
 
-      const result = await finishWebAuthnVerificationAction(session.transactionId, assertion);
+      const fingerprint = await getDeviceFingerprint().catch(() => null);
+      const result = await finishWebAuthnVerificationAction(
+        session.transactionId,
+        assertion,
+        fingerprint?.fingerprintHash
+      );
       if (!result.ok) {
         if (result.reason === "expired") {
           setTerminal("expired");
@@ -198,7 +204,12 @@ export function HighRiskVerificationPanel({ session }: { session: VerificationSe
 
     setIsVerifying(true);
     setError(null);
-    const result = await verifyPasswordStepUpAction(session.transactionId, password);
+    const fingerprint = await getDeviceFingerprint().catch(() => null);
+    const result = await verifyPasswordStepUpAction(
+      session.transactionId,
+      password,
+      fingerprint?.fingerprintHash
+    );
     setIsVerifying(false);
 
     if (!result.ok) {
@@ -252,6 +263,7 @@ export function HighRiskVerificationPanel({ session }: { session: VerificationSe
               tier: session.tier,
               confidence: session.confidence,
               explanation: session.explanation,
+              recommendation: session.recommendation,
               otpRequired: true,
               factors: session.factors,
               actualAmount: session.amount,

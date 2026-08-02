@@ -152,6 +152,7 @@ export function FlaggedTransactionsTable({ transactions }: { transactions: Flagg
                     score: selected.score,
                     tier: selected.tier,
                     explanation: selected.explanation,
+                    recommendation: selected.recommendation,
                     otpRequired: selected.otpChallenge !== null,
                     factors: selected.factors,
                   }}

@@ -25,7 +25,13 @@ export function SidebarNav({
   return (
     <nav className="flex flex-1 flex-col gap-1 px-3">
       {items.map((item) => {
-        const active = isActive(pathname, item.href);
+        // A group is "active" (and its children expanded) either when its
+        // own href matches, or when the current page is one of its
+        // children — e.g. visiting "/security/devices" should keep the
+        // "Security" group open even though its own href points at
+        // "/security/behavior", not a shared parent path.
+        const hasActiveChild = item.children?.some((child) => pathname === child.href) ?? false;
+        const active = isActive(pathname, item.href) || hasActiveChild;
         const Icon = item.icon;
 
         return (

@@ -10,6 +10,7 @@ import { verifyOtpChallenge, type VerifyOtpFailureReason } from "@/services/otp-
 const verifyOtpSchema = z.object({
   challengeId: z.string().min(1),
   code: z.string().length(6).regex(/^\d{6}$/, "Enter the 6-digit code."),
+  deviceFingerprintHash: z.string().optional(),
 });
 
 const OTP_VERIFY_ATTEMPT_LIMIT = 10;
@@ -23,7 +24,8 @@ export interface VerifyOtpActionResult {
 
 export async function verifyOtpAction(
   challengeId: string,
-  code: string
+  code: string,
+  deviceFingerprintHash?: string
 ): Promise<VerifyOtpActionResult> {
   const user = await requireUser();
 
@@ -36,12 +38,17 @@ export async function verifyOtpAction(
     return { ok: false, reason: "rate-limited" };
   }
 
-  const parsed = verifyOtpSchema.safeParse({ challengeId, code });
+  const parsed = verifyOtpSchema.safeParse({ challengeId, code, deviceFingerprintHash });
   if (!parsed.success) {
     return { ok: false, reason: "invalid-code" };
   }
 
-  const result = await verifyOtpChallenge(user.id, parsed.data.challengeId, parsed.data.code);
+  const result = await verifyOtpChallenge(
+    user.id,
+    parsed.data.challengeId,
+    parsed.data.code,
+    parsed.data.deviceFingerprintHash
+  );
 
   revalidatePath("/alerts");
   revalidatePath("/transactions");

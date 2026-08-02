@@ -4,6 +4,7 @@ import {
   evaluateAmountDeviation,
   evaluateBehaviorDeviation,
   evaluateDeviceIntegrity,
+  evaluateDeviceSimilarity,
   evaluateLocationAnomaly,
   evaluateMultipleBeneficiaries,
   evaluateNewDevice,
@@ -16,10 +17,12 @@ import {
   evaluateSimulatedCall,
   evaluateSimulatedSms,
   evaluateTimeAnomaly,
+  evaluateUntrustedRealLocation,
   evaluateVelocity,
   evaluateWeekdayAnomaly,
   type RiskFactorResult,
 } from "@/services/risk-engine/factor-evaluators";
+import { evaluateGovernmentIntelligence } from "@/services/government-intelligence/government-risk-factor";
 import { buildExplanation } from "@/services/explainability/explanation-builder";
 import {
   isVerificationRequired,
@@ -48,6 +51,15 @@ export interface RiskScoreResult {
   confidence: number;
   explanation: string;
   factors: RiskFactorResult[];
+  /** Plain-language recommended action for the Explainable AI panel — never
+   * a bare "Transaction Blocked"; always says why and what happens next. */
+  recommendation: string;
+  /** Phase 9 — snapshot sub-totals for the explainability panel, persisted
+   * verbatim onto `RiskAssessment` so historical assessments stay accurate
+   * even as the live FIN/government-intelligence signals keep changing. */
+  finRiskScore: number;
+  governmentRiskScore: number;
+  deviceSimilarityScore: number;
 }
 
 const MAX_SCORE = 100;
@@ -116,6 +128,17 @@ export function scoreTransaction(input: RiskScoreInput): RiskScoreResult {
       medianAmount: context.medianAmount,
       hasUsedMerchantBefore: context.hasUsedMerchantBefore,
     }),
+    // Fraud Intelligence Network — already-resolved async lookups from
+    // `buildContextBundle` (open reports / cluster matches), plus the
+    // synchronous device-similarity and government-intelligence evaluators.
+    ...context.finFactors,
+    evaluateDeviceSimilarity(context.deviceSimilarUserCount),
+    evaluateGovernmentIntelligence(
+      context.governmentRiskLevel,
+      context.governmentRiskReason,
+      context.governmentRiskSource
+    ),
+    evaluateUntrustedRealLocation(context.realLocationTrusted, context.realLocationCity),
   ].filter((factor): factor is RiskFactorResult => factor !== null);
 
   const score = Math.min(
@@ -126,6 +149,58 @@ export function scoreTransaction(input: RiskScoreInput): RiskScoreResult {
   const otpRequired = isVerificationRequired(score, thresholds);
   const confidence = computeConfidence(context.sampleSize, factors.length);
   const explanation = buildExplanation(factors, date);
+  const recommendation = buildRecommendation(tier, otpRequired, factors);
 
-  return { score, tier, otpRequired, confidence, explanation, factors };
+  const finRiskScore = sumContributions(factors, (code) => code.startsWith("FIN_"));
+  const governmentRiskScore = sumContributions(factors, (code) => code.startsWith("GOVERNMENT_INTELLIGENCE_"));
+  const deviceSimilarityScore = sumContributions(factors, (code) => code === "FIN_DEVICE_SIMILARITY");
+
+  return {
+    score,
+    tier,
+    otpRequired,
+    confidence,
+    explanation,
+    factors,
+    recommendation,
+    finRiskScore,
+    governmentRiskScore,
+    deviceSimilarityScore,
+  };
+}
+
+function sumContributions(factors: RiskFactorResult[], match: (code: string) => boolean): number {
+  return factors.filter((factor) => match(factor.code)).reduce((sum, factor) => sum + factor.contribution, 0);
+}
+
+/**
+ * Per the Explainable AI rule: never a bare "Transaction Blocked" — always a
+ * specific recommended action, and CRITICAL/government-intelligence hits are
+ * called out explicitly rather than folded into a generic "high risk" line.
+ */
+function buildRecommendation(tier: RiskTier, otpRequired: boolean, factors: RiskFactorResult[]): string {
+  const hasGovernmentHit = factors.some((factor) => factor.code.startsWith("GOVERNMENT_INTELLIGENCE_"));
+  const hasFinClusterMatch = factors.some(
+    (factor) => factor.code === "FIN_DEVICE_CLUSTER_MATCH" || factor.code === "FIN_BENEFICIARY_CLUSTER_MATCH"
+  );
+
+  if (tier === "CRITICAL") {
+    if (hasGovernmentHit) {
+      return "Block this transaction and escalate to investigation — the recipient or account is flagged by government fraud intelligence (FRI/MNRL).";
+    }
+    if (hasFinClusterMatch) {
+      return "Block this transaction and escalate to investigation — this device or recipient is linked to a known fraud cluster.";
+    }
+    return "Block this transaction and escalate to investigation immediately.";
+  }
+
+  if (otpRequired) {
+    return "Require step-up verification (biometric, authenticator, or Context-Bound OTP) before this transaction can proceed.";
+  }
+
+  if (tier === "MEDIUM") {
+    return "Approve, but continue monitoring — several factors are outside this customer's typical pattern.";
+  }
+
+  return "Approve — consistent with this customer's established behavioral baseline.";
 }

@@ -6,6 +6,10 @@ import type {
   LocationSignalSubtype,
   SmsSignalSubtype,
 } from "@/services/context-signals/inject-signal";
+import { getFinRiskFactors, type FinRiskFactorResult } from "@/services/fin/risk-contribution";
+import { findSimilarDevicesAcrossUsers } from "@/services/fin/device-intelligence";
+import { checkFriForBeneficiary } from "@/services/government-intelligence/fri-service";
+import type { GovRiskLevel, GovSource } from "@prisma/client";
 
 export interface ContextBundle {
   avgAmount: number | null;
@@ -40,6 +44,20 @@ export interface ContextBundle {
   screenShareActive: boolean;
   remoteAccessActive: boolean;
   accessibilityAbuseActive: boolean;
+
+  // Phase 9 — Fraud Intelligence Network + Government Intelligence, resolved
+  // ahead of time here so `risk-scorer.ts` can stay a pure/synchronous
+  // function like every other evaluator input.
+  finFactors: FinRiskFactorResult[];
+  deviceSimilarUserCount: number;
+  governmentRiskLevel: GovRiskLevel | null;
+  governmentRiskReason: string | null;
+  governmentRiskSource: GovSource | null;
+  /** Derived from the customer's current `Session.trusted`/`city` (populated
+   * at login by `resolveSessionLocation`) — null when no session exists yet
+   * (e.g. server-side simulations without a browser session). */
+  realLocationTrusted: boolean | null;
+  realLocationCity: string | null;
 }
 
 export interface ContextBundleInput {
@@ -83,6 +101,8 @@ export async function buildContextBundle(input: ContextBundleInput): Promise<Con
     beneficiaryHistory,
     distinctBeneficiariesLastDay,
     pendingSignals,
+    latestSession,
+    finFactors,
   ] = await Promise.all([
     prisma.behavioralProfile.findUnique({ where: { userId: input.userId } }),
     prisma.transaction.count({
@@ -133,7 +153,29 @@ export async function buildContextBundle(input: ContextBundleInput): Promise<Con
     prisma.contextSignal.findMany({
       where: { userId: input.userId, transactionId: null, receivedAt: { gte: signalWindowStart } },
     }),
+    prisma.session.findFirst({
+      where: { userId: input.userId },
+      orderBy: { startedAt: "desc" },
+      select: { trusted: true, city: true, country: true },
+    }),
+    getFinRiskFactors(input.userId, {
+      deviceFingerprintHash: input.fingerprintHash,
+      beneficiary: input.beneficiary,
+    }),
   ]);
+
+  const [deviceSimilarUsers, governmentRisk] = await Promise.all([
+    device?.similarityKey ? findSimilarDevicesAcrossUsers(input.userId, device.similarityKey) : Promise.resolve([]),
+    input.beneficiary ? checkFriForBeneficiary(input.beneficiary.toLowerCase().trim()) : Promise.resolve(null),
+  ]);
+
+  const governmentRiskLevel: GovRiskLevel | null =
+    governmentRisk && governmentRisk.riskLevel !== "CLEAR" ? governmentRisk.riskLevel : null;
+  const governmentRiskSource: GovSource | null = governmentRiskLevel ? governmentRisk!.source : null;
+  const governmentRiskReason: string | null =
+    governmentRiskLevel && governmentRisk?.details
+      ? ((governmentRisk.details as { reason?: string }).reason ?? null)
+      : null;
 
   if (pendingSignals.length > 0) {
     await prisma.contextSignal.updateMany({
@@ -200,5 +242,13 @@ export async function buildContextBundle(input: ContextBundleInput): Promise<Con
     screenShareActive: deviceSubtypeActive("screen-share"),
     remoteAccessActive: deviceSubtypeActive("remote-access"),
     accessibilityAbuseActive: deviceSubtypeActive("accessibility-abuse"),
+
+    finFactors,
+    deviceSimilarUserCount: deviceSimilarUsers.length,
+    governmentRiskLevel,
+    governmentRiskReason,
+    governmentRiskSource,
+    realLocationTrusted: latestSession ? latestSession.trusted : null,
+    realLocationCity: latestSession?.city ?? null,
   };
 }

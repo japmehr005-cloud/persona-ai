@@ -2,16 +2,37 @@
 
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import type { AuthenticationResponseJSON, PublicKeyCredentialRequestOptionsJSON } from "@simplewebauthn/types";
 
 import { signIn, signOut } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { createTotpLoginChallenge, getPendingTotpLoginChallenge } from "@/services/auth/login-challenge";
+import { homePathForRole } from "@/lib/roles";
+import {
+  createTotpLoginChallenge,
+  getPendingTotpLoginChallenge,
+  createWebAuthnLoginChallenge,
+  getPendingWebAuthnLoginChallenge,
+} from "@/services/auth/login-challenge";
+import { createLoginOtpChallenge } from "@/services/auth/login-otp";
+import { buildAuthenticationOptions } from "@/services/auth/webauthn";
+import { scoreLogin } from "@/services/risk-engine/score-login";
+import { recordFinEvent } from "@/services/fin/fin-event-logger";
 
 const LOGIN_ATTEMPT_LIMIT = 8;
 const LOGIN_ATTEMPT_WINDOW_MS = 5 * 60 * 1000;
+
+async function getRequestIpAddress(): Promise<string | null> {
+  const requestHeaders = await headers();
+  return (
+    requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    requestHeaders.get("x-real-ip") ??
+    null
+  );
+}
 
 export async function signOutAction() {
   await signOut({ redirectTo: "/login" });
@@ -20,12 +41,27 @@ export async function signOutAction() {
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address."),
   password: z.string().min(1, "Password is required."),
+  fingerprintHash: z.string().optional(),
 });
 
 export interface LoginActionState {
   error?: string;
 }
 
+/**
+ * Adaptive Authentication's login entry point. Password is always checked
+ * first (so a wrong password never reveals which second factor an account
+ * uses), then the flow branches into exactly one of four outcomes:
+ *
+ *  1. Legacy/Authenticator-app TOTP already enabled → `/login/verify-2fa`
+ *     (unchanged from before Phase 1 — mandatory once enrolled).
+ *  2. Preferred method is Password + Biometric → `/login/verify-webauthn`.
+ *  3. Preferred method is Password + OTP, *or* no preference is set but
+ *     `scoreLogin` flags this sign-in as risky → `/login/verify-otp`
+ *     (login-risk scoring can only ever escalate a "Standard" account to
+ *     OTP, never relax an explicit stronger preference below it).
+ *  4. Otherwise → complete sign-in immediately, same as before Phase 1.
+ */
 export async function loginAction(
   _prevState: LoginActionState,
   formData: FormData
@@ -33,6 +69,7 @@ export async function loginAction(
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
+    fingerprintHash: formData.get("fingerprintHash") || undefined,
   });
 
   if (!parsed.success) {
@@ -48,35 +85,94 @@ export async function loginAction(
     return { error: "Too many login attempts. Please wait a few minutes and try again." };
   }
 
-  // Accounts with 2FA enabled never complete sign-in here — password is
-  // checked up front (so a wrong password never reveals 2FA is enrolled),
-  // then control hands off to /login/verify-2fa for the TOTP step. Accounts
-  // without 2FA fall through to the unchanged single-step signIn below.
   const user = await prisma.user.findUnique({
     where: { email: parsed.data.email.toLowerCase() },
-    include: { twoFactorCredential: { select: { enabled: true } } },
+    include: {
+      twoFactorCredential: { select: { enabled: true } },
+      webAuthnCredentials: { select: { id: true } },
+      settings: { select: { preferredAuthMethod: true } },
+    },
   });
-  if (user) {
-    const passwordValid = await bcrypt.compare(parsed.data.password, user.passwordHash);
-    if (passwordValid && user.twoFactorCredential?.enabled) {
-      const token = await createTotpLoginChallenge(user.id);
-      redirect(`/login/verify-2fa?token=${token}`);
-    }
+  if (!user) {
+    // No account — fall through to signIn() below, which will fail the
+    // same way a wrong password does, so account existence is never leaked.
+    return signInWithPassword(parsed.data.email, parsed.data.password);
   }
 
-  try {
-    await signIn("credentials", {
-      email: parsed.data.email,
-      password: parsed.data.password,
-      redirectTo: "/dashboard",
+  const passwordValid = await bcrypt.compare(parsed.data.password, user.passwordHash);
+  if (!passwordValid) {
+    return signInWithPassword(parsed.data.email, parsed.data.password);
+  }
+
+  // Outcome 1 — unchanged from before Phase 1.
+  if (user.twoFactorCredential?.enabled) {
+    const token = await createTotpLoginChallenge(user.id);
+    redirect(`/login/verify-2fa?token=${token}`);
+  }
+
+  const ipAddress = await getRequestIpAddress();
+  const preferredMethod = user.settings?.preferredAuthMethod ?? null;
+
+  // Outcome 2.
+  if (preferredMethod === "PASSWORD_BIOMETRIC" && user.webAuthnCredentials.length > 0) {
+    const token = await createWebAuthnLoginChallenge(user.id);
+    redirect(`/login/verify-webauthn?token=${token}`);
+  }
+
+  const loginRisk = await scoreLogin({
+    userId: user.id,
+    deviceFingerprintHash: parsed.data.fingerprintHash ?? null,
+    ipAddress,
+  });
+
+  // Outcome 3.
+  if (preferredMethod === "PASSWORD_OTP" || loginRisk.requiresStepUp) {
+    if (preferredMethod === null && loginRisk.requiresStepUp) {
+      await recordFinEvent({
+        type: "LOGIN_STEP_UP_REQUIRED",
+        severity: loginRisk.score >= 60 ? "HIGH" : "MEDIUM",
+        userId: user.id,
+        ipAddress,
+        summary: `Sign-in for ${user.email} required a one-time code step-up (risk score ${loginRisk.score}).`,
+        metadata: { reasons: loginRisk.reasons, score: loginRisk.score },
+      });
+    }
+
+    const challenge = await createLoginOtpChallenge(user.id, user.email, parsed.data.fingerprintHash ?? null);
+    const query = new URLSearchParams({ challengeId: challenge.challengeId });
+    if (challenge.demoCode) query.set("demoCode", challenge.demoCode);
+    redirect(`/login/verify-otp?${query.toString()}`);
+  }
+
+  // Outcome 4 — same single-step signIn as before Phase 1.
+  return signInWithPassword(parsed.data.email, parsed.data.password);
+}
+
+async function resolvePostLoginPath(input: { email?: string; userId?: string }): Promise<string> {
+  if (input.userId) {
+    const user = await prisma.user.findUnique({ where: { id: input.userId }, select: { role: true } });
+    return homePathForRole(user?.role);
+  }
+  if (input.email) {
+    const user = await prisma.user.findUnique({
+      where: { email: input.email.toLowerCase() },
+      select: { role: true },
     });
+    return homePathForRole(user?.role);
+  }
+  return "/dashboard";
+}
+
+async function signInWithPassword(email: string, password: string): Promise<LoginActionState> {
+  try {
+    const redirectTo = await resolvePostLoginPath({ email });
+    await signIn("credentials", { email, password, redirectTo });
   } catch (error) {
     if (error instanceof AuthError) {
       return { error: "Invalid email or password." };
     }
     throw error;
   }
-
   return {};
 }
 
@@ -112,10 +208,11 @@ export async function verifyTwoFactorLoginAction(
   }
 
   try {
+    const redirectTo = await resolvePostLoginPath({ userId: challenge.userId });
     await signIn("credentials", {
       challengeToken: parsed.data.token,
       code: parsed.data.code,
-      redirectTo: "/dashboard",
+      redirectTo,
     });
   } catch (error) {
     if (error instanceof AuthError) {
@@ -125,6 +222,142 @@ export async function verifyTwoFactorLoginAction(
   }
 
   return {};
+}
+
+export interface VerifyLoginOtpActionState {
+  error?: string;
+}
+
+const verifyLoginOtpSchema = z.object({
+  challengeId: z.string().min(1),
+  code: z.string().length(6, "Enter the 6-digit code.").regex(/^\d{6}$/, "Enter the 6-digit code."),
+  deviceFingerprintHash: z.string().optional(),
+});
+
+/**
+ * Adaptive Authentication Option 1 (Password + OTP) — step 2. Re-verifies
+ * the code inside `authorize()` via `verifyLoginOtpChallenge`, exactly like
+ * the TOTP branch above; this action only forwards the form values.
+ */
+export async function verifyLoginOtpAction(
+  _prevState: VerifyLoginOtpActionState,
+  formData: FormData
+): Promise<VerifyLoginOtpActionState> {
+  const parsed = verifyLoginOtpSchema.safeParse({
+    challengeId: formData.get("challengeId"),
+    code: formData.get("code"),
+    deviceFingerprintHash: formData.get("deviceFingerprintHash") || undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Enter a valid code." };
+  }
+
+  const rateLimit = checkRateLimit(`otp-login:${parsed.data.challengeId}`, 8, 5 * 60 * 1000);
+  if (!rateLimit.allowed) {
+    return { error: "Too many attempts. Please wait a few minutes and try again." };
+  }
+
+  try {
+    const otpChallenge = await prisma.otpChallenge.findFirst({
+      where: { id: parsed.data.challengeId, purpose: "LOGIN" },
+      select: { userId: true },
+    });
+    const redirectTo = await resolvePostLoginPath({ userId: otpChallenge?.userId });
+    await signIn("credentials", {
+      otpChallengeId: parsed.data.challengeId,
+      otpCode: parsed.data.code,
+      otpDeviceFingerprintHash: parsed.data.deviceFingerprintHash,
+      redirectTo,
+    });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return { error: "Invalid or expired code. Please try again." };
+    }
+    throw error;
+  }
+
+  return {};
+}
+
+/** Adaptive Authentication Option 2 (Password + Biometric) — step 2a:
+ * hands the client the WebAuthn assertion options for the user this
+ * pending challenge belongs to. */
+export async function startWebAuthnLoginAction(
+  token: string
+): Promise<
+  | { ok: true; options: PublicKeyCredentialRequestOptionsJSON }
+  | { ok: false; error: string }
+> {
+  const challenge = await getPendingWebAuthnLoginChallenge(token);
+  if (!challenge) {
+    return { ok: false, error: "This sign-in session has expired. Please sign in again." };
+  }
+
+  const rateLimit = checkRateLimit(`webauthn-login-start:${challenge.userId}`, 10, 5 * 60 * 1000);
+  if (!rateLimit.allowed) {
+    return { ok: false, error: "Too many attempts. Please wait a few minutes and try again." };
+  }
+
+  const options = await buildAuthenticationOptions(challenge.userId);
+  return { ok: true, options };
+}
+
+export interface WebAuthnLoginActionState {
+  error?: string;
+}
+
+/** Adaptive Authentication Option 2 (Password + Biometric) — step 2b:
+ * re-verifies the signed assertion inside `authorize()`, exactly like the
+ * TOTP/OTP branches above. */
+export async function finishWebAuthnLoginAction(
+  token: string,
+  assertion: AuthenticationResponseJSON
+): Promise<WebAuthnLoginActionState> {
+  try {
+    const challenge = await getPendingWebAuthnLoginChallenge(token);
+    const redirectTo = await resolvePostLoginPath({ userId: challenge?.userId });
+    await signIn("credentials", {
+      webauthnChallengeToken: token,
+      webauthnAssertion: JSON.stringify(assertion),
+      redirectTo,
+    });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return { error: "Biometric verification failed. Please try again or use another method." };
+    }
+    throw error;
+  }
+
+  return {};
+}
+
+/**
+ * Fallback from `/login/verify-webauthn`: lets a user who can't complete
+ * biometric verification (no fingerprint sensor available, cancelled
+ * prompt, etc.) fall back to a Password + OTP code instead, without
+ * re-entering their password. The original WebAuthn challenge is consumed
+ * so it can't be replayed after the switch. Returns the new destination
+ * instead of calling `redirect()` itself, matching how every other
+ * client-invoked (non-form) action in this codebase hands navigation back
+ * to the caller (see `HighRiskVerificationPanel`'s `goToOtp`).
+ */
+export async function switchToOtpLoginAction(
+  token: string
+): Promise<{ ok: true; redirectTo: string } | { ok: false; error: string }> {
+  const challenge = await getPendingWebAuthnLoginChallenge(token);
+  if (!challenge) {
+    return { ok: false, error: "This sign-in session has expired. Please sign in again." };
+  }
+
+  await prisma.pendingAuthChallenge.updateMany({
+    where: { token, consumed: false },
+    data: { consumed: true },
+  });
+
+  const otpChallenge = await createLoginOtpChallenge(challenge.userId, challenge.userEmail);
+  const query = new URLSearchParams({ challengeId: otpChallenge.challengeId });
+  if (otpChallenge.demoCode) query.set("demoCode", otpChallenge.demoCode);
+  return { ok: true, redirectTo: `/login/verify-otp?${query.toString()}` };
 }
 
 const registerSchema = z.object({

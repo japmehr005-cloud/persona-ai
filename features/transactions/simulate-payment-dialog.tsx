@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Zap } from "lucide-react";
+import { Loader2, PhoneOff, ShieldAlert, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { getDeviceFingerprint } from "@/lib/device-fingerprint";
 import { TRANSACTION_CATEGORIES } from "@/lib/constants";
-import { simulatePaymentAction } from "@/features/transactions/simulate-payment-actions";
+import {
+  simulatePaymentAction,
+  type PausedForCallResult,
+} from "@/features/transactions/simulate-payment-actions";
 import { RiskBreakdown } from "@/components/shared/risk-breakdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +51,7 @@ interface SimulationOutcome {
   tier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   confidence: number;
   explanation: string;
+  recommendation: string;
   otpRequired: boolean;
   factors: { code: string; label: string; detail: string; contribution: number }[];
   verificationStatus: "NONE" | "PENDING";
@@ -66,6 +70,7 @@ export function SimulatePaymentDialog({ accounts }: { accounts: AccountOption[] 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [outcome, setOutcome] = useState<SimulationOutcome | null>(null);
   const [transactionId, setTransactionId] = useState<string | null>(null);
+  const [callWarning, setCallWarning] = useState<PausedForCallResult | null>(null);
 
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [merchant, setMerchant] = useState("");
@@ -81,16 +86,11 @@ export function SimulatePaymentDialog({ accounts }: { accounts: AccountOption[] 
     setChannel("CARD");
     setOutcome(null);
     setTransactionId(null);
+    setCallWarning(null);
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const submitPayment = async (acknowledgeCallWarning: boolean) => {
     const parsedAmount = Number(amount);
-    if (!accountId || !merchant.trim() || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      toast.error("Fill in a merchant and a positive amount to simulate a payment.");
-      return;
-    }
-
     setIsSubmitting(true);
     const fingerprint = await getDeviceFingerprint().catch(() => null);
 
@@ -102,6 +102,7 @@ export function SimulatePaymentDialog({ accounts }: { accounts: AccountOption[] 
       beneficiary: beneficiary.trim() || undefined,
       channel,
       fingerprintHash: fingerprint?.fingerprintHash,
+      acknowledgeCallWarning,
     });
 
     setIsSubmitting(false);
@@ -111,11 +112,18 @@ export function SimulatePaymentDialog({ accounts }: { accounts: AccountOption[] 
       return;
     }
 
+    if ("paused" in response) {
+      setCallWarning(response);
+      return;
+    }
+
+    setCallWarning(null);
     setOutcome({
       score: response.result.score,
       tier: response.result.tier,
       confidence: response.result.confidence,
       explanation: response.result.explanation,
+      recommendation: response.result.recommendation,
       otpRequired: response.result.otpRequired,
       factors: response.result.factors,
       verificationStatus: response.result.verificationStatus,
@@ -124,6 +132,17 @@ export function SimulatePaymentDialog({ accounts }: { accounts: AccountOption[] 
     });
     setTransactionId(response.result.transactionId);
     router.refresh();
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const parsedAmount = Number(amount);
+    if (!accountId || !merchant.trim() || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      toast.error("Fill in a merchant and a positive amount to simulate a payment.");
+      return;
+    }
+
+    await submitPayment(false);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -140,7 +159,53 @@ export function SimulatePaymentDialog({ accounts }: { accounts: AccountOption[] 
         </Button>
       </DialogTrigger>
       <DialogContent>
-        {outcome ? (
+        {callWarning ? (
+          <>
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                  {callWarning.isWhatsAppCall ? (
+                    <PhoneOff className="size-5" />
+                  ) : (
+                    <ShieldAlert className="size-5" />
+                  )}
+                </span>
+                <div>
+                  <DialogTitle>We paused this transaction</DialogTitle>
+                  <DialogDescription>
+                    Context Intelligence detected an active {callWarning.isWhatsAppCall ? "WhatsApp " : ""}call
+                    on your account.
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+            <div className="mt-2 space-y-3 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+              <p>
+                Fraudsters often stay on the phone with victims while guiding them through a transfer.
+                Sending <span className="font-semibold">{callWarning.merchant}</span> ₹
+                {callWarning.amount.toLocaleString("en-IN")} while a call is active is unusual, so we&apos;ve
+                held it for your protection.
+              </p>
+              <p className="text-destructive/90">
+                If this is genuinely you, you can continue — you&apos;ll be asked to verify your identity
+                before the transfer completes.
+              </p>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+                End call &amp; cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={isSubmitting}
+                onClick={() => submitPayment(true)}
+              >
+                {isSubmitting && <Loader2 className="animate-spin" />}
+                Continue anyway
+              </Button>
+            </DialogFooter>
+          </>
+        ) : outcome ? (
           <>
             <DialogHeader>
               <DialogTitle>Risk assessment result</DialogTitle>
@@ -154,6 +219,7 @@ export function SimulatePaymentDialog({ accounts }: { accounts: AccountOption[] 
                 tier: outcome.tier,
                 confidence: outcome.confidence,
                 explanation: outcome.explanation,
+                recommendation: outcome.recommendation,
                 otpRequired: outcome.otpRequired,
                 factors: outcome.factors,
                 actualAmount: outcome.actualAmount,

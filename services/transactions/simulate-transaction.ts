@@ -30,6 +30,8 @@ export interface SimulateTransactionResult {
    * before a Context-Bound OTP is ever issued — see `verificationStatus`. */
   otpRequired: boolean;
   explanation: string;
+  /** Plain-language recommended action for the Explainable AI panel. */
+  recommendation: string;
   factors: { code: string; label: string; detail: string; contribution: number }[];
   /** "PENDING" when a High-Risk Verification context session was opened
    * (HIGH/CRITICAL); "NONE" when the transaction was approved outright. */
@@ -136,6 +138,10 @@ export async function simulateTransaction(
           context.medianAmount !== null ? new Prisma.Decimal(context.medianAmount) : null,
         baselineSampleSize: context.sampleSize,
         deviceTrusted: context.deviceTrusted,
+        finRiskScore: result.finRiskScore,
+        governmentRiskScore: result.governmentRiskScore,
+        deviceSimilarityScore: result.deviceSimilarityScore,
+        recommendation: result.recommendation,
         factors: {
           create: result.factors.map((factor) => ({
             code: factor.code,
@@ -173,6 +179,7 @@ export async function simulateTransaction(
     confidence: result.confidence,
     otpRequired: result.otpRequired,
     explanation: result.explanation,
+    recommendation: result.recommendation,
     factors: result.factors.map((factor) => ({
       code: factor.code,
       label: factor.label,

@@ -1,0 +1,32 @@
+---
+alwaysApply: true
+---
+
+# Risk Engine
+
+Never use static thresholds when behavioral intelligence is available.
+
+Risk decisions should combine:
+
+• Behavioral AI
+• Context Intelligence
+• FIN
+• FRI/MNRL
+• Device Trust
+• Historical Behaviour
+• Transaction Analysis
+
+Every prediction must return:
+
+• Risk Score
+• Risk Category
+• Confidence
+• Triggered Factors
+• AI Explanation
+• Recommended Action
+
+Never display generic messages such as:
+
+"Transaction Blocked"
+
+Instead explain WHY the decision was made.

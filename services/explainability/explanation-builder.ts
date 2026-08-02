@@ -31,6 +31,14 @@ const FRAGMENT_BUILDERS: Record<string, (factor: RiskFactorResult, date: Date) =
   REMOTE_ACCESS: () => "occurred while remote-control software was running on the device",
   ACCESSIBILITY_ABUSE: () => "occurred alongside accessibility-service usage consistent with fraud automation",
   BEHAVIOR_DEVIATION: (factor) => factor.detail.replace(/^This is /, "is ").replace(/\.$/, ""),
+  FIN_OPEN_FRAUD_REPORT: () => "was made on an account with an open fraud report under review",
+  FIN_DEVICE_CLUSTER_MATCH: () => "was made from a device another customer has reported as suspicious",
+  FIN_BENEFICIARY_CLUSTER_MATCH: () => "was sent to a recipient another customer has reported as suspicious",
+  FIN_DEVICE_SIMILARITY: (factor) => factor.detail.replace(/^This device /, "was made from a device that ").replace(/\.$/, ""),
+  GOVERNMENT_INTELLIGENCE_LOW: () => "involves a party with a minor government fraud-intelligence flag",
+  GOVERNMENT_INTELLIGENCE_ELEVATED: () => "involves a party flagged with elevated risk by government fraud intelligence",
+  GOVERNMENT_INTELLIGENCE_HIGH: () => "involves a party flagged by government fraud intelligence (FRI/MNRL)",
+  REAL_LOCATION_UNTRUSTED: () => "originated from a sign-in location we haven't yet confirmed as trusted",
 };
 
 /**
