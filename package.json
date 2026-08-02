@@ -7,9 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "postinstall": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
     "ml:train": "python ml/transaction-ai/train.py",
-    "ml:serve": "cd ml/transaction-ai && python -m uvicorn app.main:app --host 127.0.0.1 --port 8001",
+    "ml:serve": "cd ml/transaction-ai && python -m app.main",
     "test:e2e": "playwright test"
   },
   "prisma": {

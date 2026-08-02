@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -59,3 +60,13 @@ def classify_transaction(body: ClassifyRequest) -> ClassifyResponse:
         raise HTTPException(status_code=503, detail="Model not loaded")
     result = classifier.classify(body.narration)
     return ClassifyResponse(**result)
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", "8001")),
+    )
