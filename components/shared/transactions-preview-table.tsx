@@ -18,6 +18,7 @@ import type { DashboardTransaction } from "@/services/dashboard/get-dashboard-su
 const STATUS_VARIANT: Record<DashboardTransaction["status"], "success" | "warning" | "destructive" | "outline"> = {
   APPROVED: "success",
   PENDING: "warning",
+  PAUSED_FOR_VERIFICATION: "warning",
   FLAGGED: "warning",
   DENIED: "destructive",
 };

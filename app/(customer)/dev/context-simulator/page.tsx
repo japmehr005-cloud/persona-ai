@@ -25,7 +25,7 @@ export default async function ContextSimulatorPage() {
     <PageContainer>
       <PageHeader
         title="Context Signal Simulator"
-        description="Inject mock inbound call, SMS, or location events into the risk pipeline to see how the Adaptive Risk Engine reacts."
+        description="Inject demo signals for Social Engineering Protection and Context Intelligence. Active phone call feeds the Social Engineering Engine only — it does not change the Risk Engine score."
       />
 
       <div className="mb-4 flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">

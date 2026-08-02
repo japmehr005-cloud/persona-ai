@@ -15,30 +15,30 @@ export default async function LoginPage({
   const { error } = await searchParams;
 
   return (
-    <div className="flex w-full max-w-sm flex-col gap-4">
+    <div className="flex w-full max-w-md flex-col gap-5">
       <LoginForm />
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 px-1">
         <Separator className="flex-1" />
         <span className="text-xs text-muted-foreground">OR</span>
         <Separator className="flex-1" />
       </div>
       <form action={demoLoginAction}>
-        <Button type="submit" variant="outline" className="w-full">
+        <Button type="submit" variant="outline" className="min-h-11 w-full">
           Explore with a demo workspace
         </Button>
       </form>
       {error === "demo-unavailable" && (
-        <p className="text-center text-xs text-muted-foreground">
+        <p className="text-center text-sm text-muted-foreground">
           Demo workspace is being provisioned. Please try again shortly.
         </p>
       )}
       {error === "2fa-expired" && (
-        <p className="text-center text-xs text-muted-foreground">
+        <p className="text-center text-sm text-muted-foreground">
           That sign-in session expired. Please sign in again.
         </p>
       )}
       {error === "otp-expired" && (
-        <p className="text-center text-xs text-muted-foreground">
+        <p className="text-center text-sm text-muted-foreground">
           That one-time code expired or was already used. Please sign in again.
         </p>
       )}

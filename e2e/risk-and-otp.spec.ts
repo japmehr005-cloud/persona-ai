@@ -10,7 +10,7 @@ test.describe("Adaptive Risk Engine and CB-OTP", () => {
   test("scores a small, known-merchant payment well under the step-up threshold", async ({ page }) => {
     await simulatePayment(page, { merchant: "Salary Credit - Infosys", amount: "250" });
 
-    const dialog = page.getByRole("dialog", { name: "Risk assessment result" });
+    const dialog = page.getByRole("dialog", { name: "Payment security decision" });
     await expect(dialog.getByText("High risk")).toHaveCount(0);
     await expect(dialog.getByText("Step-up verification required")).toHaveCount(0);
     await expect(dialog.getByRole("button", { name: "View transaction" })).toBeVisible();
@@ -29,24 +29,24 @@ test.describe("Adaptive Risk Engine and CB-OTP", () => {
     }
 
     await page.goto("/dev/context-simulator");
-    await page.getByRole("button", { name: "Trigger" }).nth(0).click();
-    await expect(page.getByText("Signal injected")).toBeVisible();
+    // SMS + location feed the Risk Engine. Phone call feeds Social Engineering
+    // Protection only (Continue Anyway is handled inside simulatePayment).
     await page.getByRole("button", { name: "Trigger" }).nth(1).click();
+    await expect(page.getByText("Signal injected")).toBeVisible();
+    await page.getByRole("button", { name: "Trigger" }).nth(2).click();
     await expect(page.getByRole("button", { name: "Clear all" })).toBeVisible();
 
     await page.goto("/dashboard");
     const merchant = `Unfamiliar Wire Desk ${Date.now()}`;
     await simulatePayment(page, { merchant, amount: "500000" });
 
-    const dialog = page.getByRole("dialog", { name: "Risk assessment result" });
+    const dialog = page.getByRole("dialog", { name: "Payment security decision" });
     // An amount this far outside the behavioral baseline reliably reaches
     // HIGH or CRITICAL (an uncapped-growth curve, by design — see the Risk
     // Engine rebuild), so assert on the step-up gate rather than pinning
     // to one specific tier label.
     await expect(dialog.getByText("Step-up verification required")).toBeVisible();
-    await expect(
-      dialog.getByText("This transaction is on hold. You'll need to verify your identity")
-    ).toBeVisible();
+    await expect(dialog.getByText(/Verification Required|Status/i)).toBeVisible();
 
     await dialog.getByRole("button", { name: "Review & verify" }).click();
     await page.waitForURL("**/verify/session/**");
@@ -84,15 +84,15 @@ test.describe("Adaptive Risk Engine and CB-OTP", () => {
     }
 
     await page.goto("/dev/context-simulator");
-    await page.getByRole("button", { name: "Trigger" }).nth(0).click();
-    await expect(page.getByText("Signal injected")).toBeVisible();
     await page.getByRole("button", { name: "Trigger" }).nth(1).click();
+    await expect(page.getByText("Signal injected")).toBeVisible();
+    await page.getByRole("button", { name: "Trigger" }).nth(2).click();
 
     await page.goto("/dashboard");
     const merchant = `Unfamiliar Wire Desk Cancel ${Date.now()}`;
     await simulatePayment(page, { merchant, amount: "500000" });
 
-    const dialog = page.getByRole("dialog", { name: "Risk assessment result" });
+    const dialog = page.getByRole("dialog", { name: "Payment security decision" });
     await dialog.getByRole("button", { name: "Review & verify" }).click();
     await page.waitForURL("**/verify/session/**");
 

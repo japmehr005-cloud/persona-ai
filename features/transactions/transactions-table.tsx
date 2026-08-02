@@ -25,6 +25,7 @@ import {
 const STATUS_VARIANT: Record<TransactionRow["status"], "success" | "warning" | "destructive"> = {
   APPROVED: "success",
   PENDING: "warning",
+  PAUSED_FOR_VERIFICATION: "warning",
   FLAGGED: "warning",
   DENIED: "destructive",
 };

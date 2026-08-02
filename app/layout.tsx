@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     template: "%s · Persona AI",
   },
   description:
-    "AI-Powered Behavioral Fraud Prevention for digital banking. Persona AI learns each customer's financial behavior and only steps up verification when a transaction looks out of character.",
+    "Hybrid AI fraud detection powered by the Fraud Intelligence Network (FIN). Persona AI combines behavioural intelligence, machine learning, social engineering protection and adaptive authentication into one explainable risk decision.",
 };
 
 export default async function RootLayout({

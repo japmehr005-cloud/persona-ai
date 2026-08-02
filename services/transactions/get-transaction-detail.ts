@@ -8,7 +8,7 @@ export interface TransactionDetail {
   amount: number;
   beneficiary: string | null;
   channel: "CARD" | "TRANSFER" | "ACH" | "ATM" | "ONLINE";
-  status: "PENDING" | "APPROVED" | "DENIED" | "FLAGGED";
+  status: "PENDING" | "APPROVED" | "DENIED" | "FLAGGED" | "PAUSED_FOR_VERIFICATION";
   isSimulated: boolean;
   accountName: string;
   accountMask: string;

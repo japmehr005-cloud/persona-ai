@@ -30,6 +30,7 @@ export const metadata: Metadata = { title: "Transaction detail" };
 const STATUS_VARIANT: Record<string, "success" | "warning" | "destructive"> = {
   APPROVED: "success",
   PENDING: "warning",
+  PAUSED_FOR_VERIFICATION: "warning",
   FLAGGED: "warning",
   DENIED: "destructive",
 };

@@ -92,6 +92,9 @@ enum TransactionStatus {
   APPROVED
   DENIED
   FLAGGED
+  /// Social Engineering Protection interrupted the transfer before completion.
+  /// Independent of Risk Engine scoring — see transaction-orchestrator.
+  PAUSED_FOR_VERIFICATION
 }
 
 enum TransactionChannel {

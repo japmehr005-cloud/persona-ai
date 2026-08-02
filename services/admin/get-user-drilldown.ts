@@ -21,7 +21,7 @@ export interface UserDrilldown {
     date: Date;
     merchant: string;
     amount: number;
-    status: "PENDING" | "APPROVED" | "DENIED" | "FLAGGED";
+    status: "PENDING" | "APPROVED" | "DENIED" | "FLAGGED" | "PAUSED_FOR_VERIFICATION";
     riskTier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
   }[];
   openAlertCount: number;

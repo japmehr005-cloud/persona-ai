@@ -6,7 +6,7 @@ export interface TransactionRow {
   merchant: string;
   category: string;
   amount: number;
-  status: "PENDING" | "APPROVED" | "DENIED" | "FLAGGED";
+  status: "PENDING" | "APPROVED" | "DENIED" | "FLAGGED" | "PAUSED_FOR_VERIFICATION";
   riskTier: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
   accountName: string;
   accountMask: string;

@@ -38,38 +38,46 @@ export async function signOutAction() {
   await signOut({ redirectTo: "/login" });
 }
 
+const requestedAuthMethodSchema = z
+  .enum(["PASSWORD_OTP", "PASSWORD_BIOMETRIC", "AUTHENTICATOR"])
+  .optional();
+
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address."),
   password: z.string().min(1, "Password is required."),
   fingerprintHash: z.string().optional(),
+  /** Session-scoped method from the login chooser — does not persist to settings. */
+  requestedAuthMethod: requestedAuthMethodSchema,
 });
 
 export interface LoginActionState {
   error?: string;
+  /** When set, the client should run the Face ID / fingerprint simulation step. */
+  demoBiometricToken?: string;
 }
 
 /**
  * Adaptive Authentication's login entry point. Password is always checked
  * first (so a wrong password never reveals which second factor an account
- * uses), then the flow branches into exactly one of four outcomes:
+ * uses), then the flow branches by session-scoped `requestedAuthMethod`
+ * (login chooser) or the customer's saved preference:
  *
- *  1. Legacy/Authenticator-app TOTP already enabled → `/login/verify-2fa`
- *     (unchanged from before Phase 1 — mandatory once enrolled).
- *  2. Preferred method is Password + Biometric → `/login/verify-webauthn`.
- *  3. Preferred method is Password + OTP, *or* no preference is set but
- *     `scoreLogin` flags this sign-in as risky → `/login/verify-otp`
- *     (login-risk scoring can only ever escalate a "Standard" account to
- *     OTP, never relax an explicit stronger preference below it).
- *  4. Otherwise → complete sign-in immediately, same as before Phase 1.
+ *  1. Authenticator/TOTP already enabled → `/login/verify-2fa` (mandatory).
+ *  2. Password + Biometric → WebAuthn, or demo biometric simulation token.
+ *  3. Password + OTP / Authenticator (no TOTP yet) / login-risk step-up → OTP.
+ *  4. Otherwise → complete sign-in immediately.
  */
 export async function loginAction(
   _prevState: LoginActionState,
   formData: FormData
 ): Promise<LoginActionState> {
+  const requestedRaw = formData.get("requestedAuthMethod");
   const parsed = loginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
     fingerprintHash: formData.get("fingerprintHash") || undefined,
+    requestedAuthMethod:
+      typeof requestedRaw === "string" && requestedRaw.length > 0 ? requestedRaw : undefined,
   });
 
   if (!parsed.success) {
@@ -104,19 +112,26 @@ export async function loginAction(
     return signInWithPassword(parsed.data.email, parsed.data.password);
   }
 
-  // Outcome 1 — unchanged from before Phase 1.
+  // Outcome 1 — TOTP enrolled is always mandatory (Authenticator path).
   if (user.twoFactorCredential?.enabled) {
     const token = await createTotpLoginChallenge(user.id);
     redirect(`/login/verify-2fa?token=${token}`);
   }
 
   const ipAddress = await getRequestIpAddress();
-  const preferredMethod = user.settings?.preferredAuthMethod ?? null;
+  const effectiveMethod =
+    parsed.data.requestedAuthMethod ?? user.settings?.preferredAuthMethod ?? null;
 
-  // Outcome 2.
-  if (preferredMethod === "PASSWORD_BIOMETRIC" && user.webAuthnCredentials.length > 0) {
+  // Outcome 2 — Password + Biometrics.
+  if (effectiveMethod === "PASSWORD_BIOMETRIC") {
+    if (user.webAuthnCredentials.length > 0) {
+      const token = await createWebAuthnLoginChallenge(user.id);
+      redirect(`/login/verify-webauthn?token=${token}`);
+    }
+    // Demo / devices without a registered authenticator — client simulates
+    // Face ID / fingerprint, then completes via completeDemoBiometricLoginAction.
     const token = await createWebAuthnLoginChallenge(user.id);
-    redirect(`/login/verify-webauthn?token=${token}`);
+    return { demoBiometricToken: token };
   }
 
   const loginRisk = await scoreLogin({
@@ -125,9 +140,15 @@ export async function loginAction(
     ipAddress,
   });
 
-  // Outcome 3.
-  if (preferredMethod === "PASSWORD_OTP" || loginRisk.requiresStepUp) {
-    if (preferredMethod === null && loginRisk.requiresStepUp) {
+  // Outcome 3 — OTP (explicit chooser, saved preference, Authenticator without
+  // TOTP enrollment yet, or risk-driven step-up).
+  const wantsOtp =
+    effectiveMethod === "PASSWORD_OTP" ||
+    effectiveMethod === "AUTHENTICATOR" ||
+    loginRisk.requiresStepUp;
+
+  if (wantsOtp) {
+    if (effectiveMethod === null && loginRisk.requiresStepUp) {
       await recordFinEvent({
         type: "LOGIN_STEP_UP_REQUIRED",
         severity: loginRisk.score >= 60 ? "HIGH" : "MEDIUM",
@@ -138,7 +159,11 @@ export async function loginAction(
       });
     }
 
-    const challenge = await createLoginOtpChallenge(user.id, user.email, parsed.data.fingerprintHash ?? null);
+    const challenge = await createLoginOtpChallenge(
+      user.id,
+      user.email,
+      parsed.data.fingerprintHash ?? null
+    );
     const query = new URLSearchParams({ challengeId: challenge.challengeId });
     if (challenge.demoCode) query.set("demoCode", challenge.demoCode);
     redirect(`/login/verify-otp?${query.toString()}`);
@@ -146,6 +171,45 @@ export async function loginAction(
 
   // Outcome 4 — same single-step signIn as before Phase 1.
   return signInWithPassword(parsed.data.email, parsed.data.password);
+}
+
+/**
+ * Completes the demo Face ID / fingerprint simulation after password was
+ * verified and a WEBAUTHN_LOGIN challenge was issued (no hardware credential).
+ */
+export async function completeDemoBiometricLoginAction(input: {
+  token: string;
+  email: string;
+  password: string;
+}): Promise<LoginActionState> {
+  const challenge = await getPendingWebAuthnLoginChallenge(input.token);
+  if (!challenge) {
+    return { error: "That biometric sign-in session expired. Please sign in again." };
+  }
+
+  if (challenge.userEmail.toLowerCase() !== input.email.toLowerCase()) {
+    return { error: "Biometric session does not match this account." };
+  }
+
+  const passwordValid = await bcrypt.compare(
+    input.password,
+    (
+      await prisma.user.findUniqueOrThrow({
+        where: { id: challenge.userId },
+        select: { passwordHash: true },
+      })
+    ).passwordHash
+  );
+  if (!passwordValid) {
+    return { error: "Invalid email or password." };
+  }
+
+  await prisma.pendingAuthChallenge.updateMany({
+    where: { token: input.token, consumed: false },
+    data: { consumed: true },
+  });
+
+  return signInWithPassword(input.email, input.password);
 }
 
 async function resolvePostLoginPath(input: { email?: string; userId?: string }): Promise<string> {

@@ -30,9 +30,10 @@ test.describe("Real TOTP two-factor authentication", () => {
     await page.locator('[data-slot="dropdown-menu-trigger"]').click();
     await page.getByRole("menuitem", { name: "Sign out" }).click();
     await page.waitForURL("**/login");
+    await page.getByRole("button", { name: /Authenticator app/i }).click();
     await page.getByLabel("Email").fill(DEMO_EMAIL);
     await page.getByLabel("Password").fill(DEMO_PASSWORD);
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByRole("button", { name: "Continue" }).click();
 
     await page.waitForURL("**/login/verify-2fa**");
     await expect(page.getByText("Two-factor verification")).toBeVisible();

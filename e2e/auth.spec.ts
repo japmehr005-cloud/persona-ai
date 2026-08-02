@@ -5,9 +5,10 @@ import { DEMO_EMAIL, DEMO_PASSWORD, login } from "./fixtures";
 test.describe("Authentication", () => {
   test("rejects invalid credentials with an inline error", async ({ page }) => {
     await page.goto("/login");
+    await page.getByRole("button", { name: /Password \+ OTP/i }).click();
     await page.getByLabel("Email").fill("demo@securebank.ai");
     await page.getByLabel("Password").fill("wrong-password");
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByRole("button", { name: "Continue" }).click();
 
     await expect(page.getByText("Invalid email or password.")).toBeVisible();
     await expect(page).toHaveURL(/\/login/);

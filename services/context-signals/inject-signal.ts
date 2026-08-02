@@ -33,20 +33,23 @@ export interface SignalOption {
 export const SIGNAL_OPTIONS: SignalOption[] = [
   {
     type: "CALL",
-    label: "Trigger inbound call",
-    description: "Simulates an active phone call during the next transaction — a common social-engineering pattern.",
+    label: "Simulate Active Phone Call",
+    description:
+      "Feeds Social Engineering Protection only (ActiveCall = true). Does not change the Risk Engine score.",
   },
   {
     type: "CALL",
     subtype: "unknown-caller",
-    label: "Trigger unknown-caller call",
-    description: "Simulates an active call from a number outside your known contacts during the next transaction.",
+    label: "Simulate Active Phone Call (unknown caller)",
+    description:
+      "Social Engineering Protection signal — unknown-caller subtype. Does not change the Risk Engine score.",
   },
   {
     type: "CALL",
     subtype: "whatsapp-call",
-    label: "Trigger WhatsApp call",
-    description: "Simulates an active WhatsApp call during the next transaction — a common vishing/social-engineering channel outside carrier visibility.",
+    label: "Simulate Active Phone Call (WhatsApp)",
+    description:
+      "Social Engineering Protection signal — WhatsApp call subtype. Does not change the Risk Engine score.",
   },
   {
     type: "SMS",

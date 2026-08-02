@@ -246,6 +246,7 @@ function composeTransactionRisk(ctx: AssistantContextPayload): { markdown: strin
         tx.riskTier === "HIGH" ||
         tx.riskTier === "CRITICAL" ||
         tx.status === "PENDING" ||
+        tx.status === "PAUSED_FOR_VERIFICATION" ||
         tx.status === "DENIED" ||
         tx.status === "FLAGGED"
     ) ?? ctx.recentTransactions.find((tx) => (tx.riskScore ?? 0) >= 40);

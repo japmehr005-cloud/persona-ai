@@ -18,8 +18,9 @@ import { Badge } from "@/components/ui/badge";
 const SIGNAL_OPTIONS: { type: SimulatedSignalType; label: string; description: string; icon: typeof PhoneCall }[] = [
   {
     type: "CALL",
-    label: "Trigger inbound call",
-    description: "Simulates an active phone call during the next transaction — a common social-engineering pattern.",
+    label: "Simulate Active Phone Call",
+    description:
+      "Feeds Social Engineering Protection (ActiveCall = true). Does not change the Risk Engine score — the payment simulator will pause the transfer independently.",
     icon: PhoneCall,
   },
   {

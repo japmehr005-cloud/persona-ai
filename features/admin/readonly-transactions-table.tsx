@@ -17,6 +17,7 @@ import type { UserDrilldown } from "@/services/admin/get-user-drilldown";
 const STATUS_VARIANT: Record<UserDrilldown["recentTransactions"][number]["status"], "success" | "warning" | "destructive"> = {
   APPROVED: "success",
   PENDING: "warning",
+  PAUSED_FOR_VERIFICATION: "warning",
   FLAGGED: "warning",
   DENIED: "destructive",
 };

@@ -7,7 +7,7 @@ export interface FlaggedQueueRow {
   merchant: string;
   category: string;
   amount: number;
-  status: "PENDING" | "APPROVED" | "DENIED" | "FLAGGED";
+  status: "PENDING" | "APPROVED" | "DENIED" | "FLAGGED" | "PAUSED_FOR_VERIFICATION";
   customerName: string;
   customerEmail: string;
   score: number;
